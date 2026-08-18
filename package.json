@@ -16,13 +16,10 @@
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
     "lucide-react": "^1.23.0",
-    "puppeteer": "^25.3.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.1",
-    "recharts": "^3.9.2",
-    "sweetalert2": "^11.26.25",
-    "xlsx": "^0.18.5"
+    "sweetalert2": "^11.26.25"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

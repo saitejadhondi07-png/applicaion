@@ -1,16 +1,72 @@
-# React + Vite
+# Endurance QMS - Mendewadi Plant
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Quality management system for CDC battery pack testing. Test engineers upload
+Excel/CSV test exports, the backend parses them, applies pass/fail thresholds, and
+drives an upload -> review -> approve workflow with role-based access.
 
-Currently, two official plugins are available:
+| Layer | Stack |
+|---|---|
+| Frontend | React 19 + Vite 8 (`src/`) |
+| Backend | ASP.NET Core `net10.0` + EF Core + SQL Server (`backend/`) |
+| Tests | Vitest (`src/test/`), xUnit (`tests/Endurance.API.Tests/`) |
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Roles: `admin`, `quality_manager`, `quality_engineer`, `test_engineer`.
 
-## React Compiler
+## First-time setup
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The backend config holds a signing key and connection string, so it is **not** in
+version control. Create it from the tracked template:
 
-## Expanding the Oxlint configuration
+```bash
+cp backend/appsettings.example.json backend/appsettings.json
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+Then edit `backend/appsettings.json` and set:
+
+- `ConnectionStrings:DefaultConnection` - your SQL Server instance.
+- `Jwt:Key` - a **unique** random string of 64+ characters. Anyone who knows this
+  value can mint valid tokens for any user and role, so never reuse the template
+  value or share it between environments. The API logs a warning at startup if it
+  detects a placeholder or a key shorter than 32 characters.
+
+`Jwt:Key` can also be supplied out-of-band as the `Jwt__Key` environment variable,
+which takes precedence and keeps the secret off disk entirely.
+
+On a database with no users, the API seeds an admin account. Set
+`DefaultAdminPassword` (or the `DEFAULT_ADMIN_PASSWORD` environment variable) to
+choose its password; otherwise one is generated and written to the startup log
+once. Existing databases are never modified.
+
+## Running
+
+```bash
+npm install
+npm run dev                 # frontend on :5173
+
+cd backend && dotnet run    # API on :5191
+```
+
+The frontend resolves the API URL at runtime (see `src/config.js`): it prefers
+`window.__RUNTIME_CONFIG__.API_BASE_URL` from `public/runtime-config.js`, then the
+build-time `VITE_API_BASE_URL`, then falls back to port 5191 on whatever host served
+the page. That means one build works on any server IP without recompiling.
+
+## Tests
+
+```bash
+npm test                                          # frontend
+dotnet test tests/Endurance.API.Tests             # backend threshold logic
+```
+
+## CORS
+
+The API accepts an origin when its host matches the host the request arrived on, or
+when it is listed under `AllowedOrigins` in `appsettings.json`. Because the frontend
+always targets its own hostname on port 5191, this works on any deployment IP without
+configuration. Add an entry to `AllowedOrigins` only if the frontend is served from a
+*different* host than the API.
+
+## Deployment
+
+See `DEPLOYMENT_IIS.md`. Note that `appsettings.json` is not in version control, so it
+must be present on the target machine with a real `Jwt:Key`.

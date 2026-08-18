@@ -62,8 +62,6 @@ const checkFileSignature = (file) => {
   });
 };
 
-import * as XLSX from 'xlsx';
-
 export const processSingleFile = async (file) => {
   const ext = file.name.split('.').pop().toLowerCase();
   
