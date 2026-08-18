@@ -191,7 +191,7 @@ namespace Endurance.API.Services
                 failCondition.Formula = "\"Fail\"";
                 failCondition.Style.Fill.PatternType = OfficeOpenXml.Style.ExcelFillStyle.Solid;
                 failCondition.Style.Fill.BackgroundColor.Color = Color.Red;
-                failCondition.Style.Font.Color.Color = Color.White;
+                failCondition.Style.Font.Color.Color = Color.Black;
                 failCondition.Style.Font.Bold = true;
 
                 var passCondition = overallRange.ConditionalFormatting.AddEqual();
