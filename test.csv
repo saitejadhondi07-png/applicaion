@@ -1,2 +1,0 @@
-cycle id, step id, record id, step state, test event, system time, relative time(sec), voltage(v), current(a), capacity(ah)
-1,1,1,1,1,2026-01-01 12:00:00,1,12.0,5.0,10.0
