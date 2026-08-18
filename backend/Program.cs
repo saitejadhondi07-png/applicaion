@@ -39,6 +39,16 @@ try
     var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("JWT Issuer is missing from configuration.");
     var jwtAudience = builder.Configuration["Jwt:Audience"] ?? throw new InvalidOperationException("JWT Audience is missing from configuration.");
 
+    // Warn (never throw) if the signing key is still a shipped placeholder or too short to be
+    // safe. Anyone who knows the key can mint valid tokens for any user and role.
+    // This is intentionally non-fatal so an existing deployment can never fail to start;
+    // set Jwt__Key as an environment variable, or edit appsettings.json, to silence it.
+    if (jwtKey.Contains("CHANGE_THIS", StringComparison.OrdinalIgnoreCase) || jwtKey.Length < 32)
+    {
+        Log.Warning("SECURITY: Jwt:Key is a placeholder or shorter than 32 chars. Tokens are forgeable.");
+        Log.Warning("SECURITY: Set a unique 64-char random key via the Jwt__Key environment variable or appsettings.json.");
+    }
+
     // Configure Kestrel Server limits for large file uploads (up to 1GB)
     builder.WebHost.ConfigureKestrel(options =>
     {
@@ -110,11 +120,29 @@ try
     builder.Services.AddAuthorization();
 
     // Enable CORS
+    // The frontend is served from the same machine as the API but on a different port
+    // (IIS :80 -> API :5191), and the deployment hostname/IP is not known at build time
+    // (see src/config.js). So allow any origin whose host matches the host the request
+    // actually arrived on, plus anything explicitly listed in AllowedOrigins.
+    // This keeps every existing deployment working on any IP, while stopping arbitrary
+    // third-party sites from making credentialed calls with the refresh_token cookie.
+    var httpContextAccessor = new HttpContextAccessor();
+    builder.Services.AddSingleton<IHttpContextAccessor>(httpContextAccessor);
+    var configuredOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("AllowSpecificOrigins", policy =>
         {
-            policy.SetIsOriginAllowed(origin => true)
+            policy.SetIsOriginAllowed(origin =>
+                  {
+                      if (configuredOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase)) return true;
+                      if (!Uri.TryCreate(origin, UriKind.Absolute, out var originUri)) return false;
+
+                      var requestHost = httpContextAccessor.HttpContext?.Request.Host.Host;
+                      return requestHost != null
+                          && string.Equals(originUri.Host, requestHost, StringComparison.OrdinalIgnoreCase);
+                  })
                   .AllowAnyMethod()
                   .AllowAnyHeader()
                   .AllowCredentials();
@@ -136,17 +164,12 @@ try
     builder.Services.AddInMemoryRateLimiting();
     builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 
-    // Antiforgery for CSRF protection
-    builder.Services.AddAntiforgery(options =>
-    {
-        options.HeaderName = "X-CSRF-TOKEN";
-        options.Cookie.Name = "XSRF-TOKEN";
-        options.Cookie.HttpOnly = true;
-        options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.None : CookieSecurePolicy.Always;
-        options.Cookie.SameSite = SameSiteMode.Lax;
-    });
-
-    // Note: Response compression is already configured above (lines 73-81)
+    // CSRF note: no antiforgery middleware is registered, and none is needed.
+    // The API authenticates with a Bearer token in the Authorization header, which a
+    // cross-site request cannot set, and the only cookie (refresh_token) is SameSite=Lax
+    // so it is not sent on cross-site POSTs to /api/auth/refresh.
+    // A previous AddAntiforgery(...) block was removed here: UseAntiforgery() was never
+    // called and no action carried [ValidateAntiForgeryToken], so it protected nothing.
 
     var app = builder.Build();
 
@@ -244,9 +267,19 @@ try
             if (!db.Users.Any())
             {
                 Log.Information("Database is empty - seeding default admin user.");
-                var adminPassword = builder.Configuration["DefaultAdminPassword"]
-                    ?? Environment.GetEnvironmentVariable("DEFAULT_ADMIN_PASSWORD")
-                    ?? "AdminPass123!";
+                var configuredAdminPassword = builder.Configuration["DefaultAdminPassword"]
+                    ?? Environment.GetEnvironmentVariable("DEFAULT_ADMIN_PASSWORD");
+
+                // No hardcoded default: if none is configured, generate one and print it once.
+                // Only reachable on a brand-new database, so existing deployments are unaffected.
+                var adminPassword = configuredAdminPassword
+                    ?? Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(18)) + "!aA1";
+
+                if (configuredAdminPassword == null)
+                {
+                    Log.Warning("No DefaultAdminPassword configured. Generated a one-time admin password: {Password}", adminPassword);
+                    Log.Warning("Copy it now - it is not stored anywhere else and will not be shown again.");
+                }
                 db.Users.Add(new User
                 {
                     Id = "102024",
@@ -258,12 +291,8 @@ try
                 });
                 Log.Warning("Default admin user created. PLEASE CHANGE THE PASSWORD IMMEDIATELY.");
             }
-            else
-            {
-                var admin = await db.Users.FirstOrDefaultAsync(u => u.Id == "102024").ConfigureAwait(false);
-                // Removed the code that forcibly resets the admin password on every boot,
-                // so that user-edited passwords are preserved.
-            }
+            // Existing databases are left alone: the admin password is never reset on boot,
+            // so user-edited passwords are preserved.
 
             // Reports are not seeded for a clean initial state
             await db.SaveChangesAsync().ConfigureAwait(false);

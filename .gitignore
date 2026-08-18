@@ -33,9 +33,11 @@ backend/appsettings.Development.json
 *.sw?
 
 # Secrets and configuration
+# appsettings.json holds the real Jwt:Key and connection string, so it stays local.
+# appsettings.example.json is the tracked template - copy it and fill in your own values.
+**/appsettings.json
 **/appsettings.*.json
-!**/appsettings.json
-!**/appsettings.Development.json
+!**/appsettings.example.json
 .env
 .env.*
 !.env.example
