@@ -20,6 +20,31 @@ namespace Endurance.API.Services
             _thresholds = thresholds.Value;
         }
 
+        /// <summary>
+        /// Header fragments that identify the operator-entered "User SoC" column.
+        /// </summary>
+        private static readonly string[] UserSocPatterns = { "user soc", "user_soc", "usersoc", "user state of charge" };
+
+        /// <summary>
+        /// Picks the SoC column, preferring the operator-entered "User SoC" over the
+        /// instrument's "State of Charge (Real SoC)".
+        /// Both headers contain the substring "soc", so a generic match returns whichever
+        /// column happens to sit further left - which silently read Real SoC depending on
+        /// the export's column order. User SoC is authoritative for pass/fail, so it is
+        /// matched explicitly and first; Real SoC is only a fallback when User SoC is absent.
+        /// Returns -1 when no SoC column of any kind is present.
+        /// </summary>
+        private static int FindSocColumn(List<string> headers)
+        {
+            int idx = headers.FindIndex(h => UserSocPatterns.Any(p => h.Contains(p)));
+            if (idx != -1) return idx;
+
+            idx = headers.FindIndex(h => h == "state_of_charge(%)" || h == "state_of_charge");
+            if (idx != -1) return idx;
+
+            return headers.FindIndex(h => h.Contains("state_of_charge") || h.Contains("soc"));
+        }
+
         public string ExtractBatteryPackId(string fileName)
         {
             var match = Regex.Match(fileName, @"T[A-Z0-9]{11}", RegexOptions.IgnoreCase);
@@ -116,6 +141,15 @@ namespace Endurance.API.Services
                                     return double.TryParse(cleanVal, out double d) ? d : 0;
                                 }
 
+                                double GetColValAt(int idx)
+                                {
+                                    if (idx == -1) return 0;
+                                    var cellVal = ws.Cells[r, idx + 1].Value?.ToString();
+                                    if (string.IsNullOrEmpty(cellVal)) return 0;
+                                    string cleanVal = Regex.Replace(cellVal, @"[^0-9.-]", "");
+                                    return double.TryParse(cleanVal, out double d) ? d : 0;
+                                }
+
                                 string GetColStr(string[] patterns)
                                 {
                                     int idx = headers.FindIndex(h => patterns.Any(p => h.Contains(p)));
@@ -133,7 +167,9 @@ namespace Endurance.API.Services
                                 if (shortChDeltaV == 0) shortChDeltaV = (int)GetColValOcc(new[] { "ch_deltav", "ch delta v", "ch_delta v" }, 1);
                                 int shortDchDeltaV = (int)GetColValOcc(new[] { "short cdc dch", "short dch" });
                                 if (shortDchDeltaV == 0) shortDchDeltaV = (int)GetColValOcc(new[] { "dch_deltav", "dch delta v", "dch_delta v" }, 1);
-                                double soc = GetColVal(new[] { "soc" }, true);
+                                // Prefer "User SoC" over "State of Charge (Real SoC)" - a plain
+                                // Contains("soc") match returns whichever column sits further left.
+                                double soc = GetColValAt(FindSocColumn(headers));
                                 double voltage = GetColVal(new[] { "voltage" }, true);
                                 string bmsErrorStr = GetColStr(new[] { "bms error", "bms_error", "no_error", "no error", "error" });
                                 string bmsError = "NO";
@@ -253,8 +289,7 @@ namespace Endurance.API.Services
                     minVoltIdx = headers.FindIndex(h => h.Contains("min_voltage_0") || h.Contains("min_voltage") || h.Contains("min voltage"));
                     maxTempIdx = headers.FindIndex(h => h.Contains("temperature_cell_max") || h.Contains("temp_cell_max") || h.Contains("cell_max_temp") || h.Contains("temperature_cell_max(?c)") || h.Contains("temperature_cell_max(?c)"));
                     minTempIdx = headers.FindIndex(h => h.Contains("temperature_cell_min") || h.Contains("temp_cell_min") || h.Contains("cell_min_temp") || h.Contains("temperature_cell_min(?c)") || h.Contains("temperature_cell_min(?c)"));
-                    socIdx = headers.FindIndex(h => h == "state_of_charge(%)" || h == "state_of_charge");
-                    if (socIdx == -1) socIdx = headers.FindIndex(h => h.Contains("state_of_charge") || h.Contains("soc"));
+                    socIdx = FindSocColumn(headers);
                     voltIdx = headers.FindIndex(h => h == "battery_voltage_0(v)" || h == "battery_voltage_0" || h == "battery_voltage");
                     if (voltIdx == -1) voltIdx = headers.FindIndex(h => h.Contains("battery_voltage_0") || h.Contains("battery_voltage") || h.Contains("voltage"));
                     currentIdx = headers.FindIndex(h => h.Contains("battery_current") || h.Contains("current(a)") || h.Contains("current"));
@@ -334,8 +369,7 @@ namespace Endurance.API.Services
                     int minVoltIdx = headers.FindIndex(h => h.Contains("min_voltage_0") || h.Contains("min_voltage") || h.Contains("min voltage"));
                     int maxTempIdx = headers.FindIndex(h => h.Contains("temperature_cell_max") || h.Contains("temp_cell_max") || h.Contains("cell_max_temp") || h.Contains("temperature_cell_max(?c)") || h.Contains("temperature_cell_max(?c)"));
                     int minTempIdx = headers.FindIndex(h => h.Contains("temperature_cell_min") || h.Contains("temp_cell_min") || h.Contains("cell_min_temp") || h.Contains("temperature_cell_min(?c)") || h.Contains("temperature_cell_min(?c)"));
-                    int socIdx = headers.FindIndex(h => h == "state_of_charge(%)" || h == "state_of_charge");
-                    if (socIdx == -1) socIdx = headers.FindIndex(h => h.Contains("state_of_charge") || h.Contains("soc"));
+                    int socIdx = FindSocColumn(headers);
                     int voltIdx = headers.FindIndex(h => h == "battery_voltage_0(v)" || h == "battery_voltage_0" || h == "battery_voltage");
                     if (voltIdx == -1) voltIdx = headers.FindIndex(h => h.Contains("battery_voltage_0") || h.Contains("battery_voltage") || h.Contains("voltage"));
                     int currentIdx = headers.FindIndex(h => h.Contains("battery_current") || h.Contains("current(a)") || h.Contains("current"));
@@ -395,6 +429,17 @@ namespace Endurance.API.Services
             int stateIdx, 
             int errorIdx)
         {
+            // Strict variant used for SoC: reports whether a real number was present,
+            // so a missing column or a truncated row is rejected instead of silently
+            // becoming 0 and then being displayed as the 29.87 default.
+            bool TryGetDouble(string[] row, int index, out double value)
+            {
+                value = 0;
+                if (index == -1 || index >= row.Length) return false;
+                string raw = Regex.Replace(row[index], @"[^0-9.-]", "");
+                return double.TryParse(raw, out value);
+            }
+
             double GetDouble(string[] row, int index)
             {
                 if (index == -1 || index >= row.Length) return 0;
@@ -565,14 +610,27 @@ namespace Endurance.API.Services
             }
 
             // Post Test Status (Last Row SOC & Voltage)
-            double soc = 29.87;
+            double soc;
             double voltage = 52.85;
             string bmsError = "NO";
 
-            if (dataRows.Count > 0)
+            if (socIdx == -1)
+            {
+                throw new InvalidOperationException(
+                    $"No SoC column found for pack {packId}. Expected a 'User SoC' column " +
+                    "(or 'State of Charge' as a fallback). The file cannot be scored without it.");
+            }
+
             {
                 var lastRow = dataRows.Last();
-                soc = Math.Round(GetDouble(lastRow, socIdx), 2);
+                if (!TryGetDouble(lastRow, socIdx, out double socValue))
+                {
+                    throw new InvalidOperationException(
+                        $"SoC value for pack {packId} is missing or not numeric in the final data row. " +
+                        "The file cannot be scored without it.");
+                }
+
+                soc = Math.Round(socValue, 2);
                 voltage = Math.Round(GetDouble(lastRow, voltIdx), 2);
 
                 if (errorIdx != -1)
@@ -620,7 +678,7 @@ namespace Endurance.API.Services
                 ChDeltaT = chDeltaT,
                 ShortChDeltaV = shortChDeltaV,
                 ShortDchDeltaV = shortDchDeltaV,
-                Soc = soc > 0 ? soc : 29.87,
+                Soc = soc,
                 Voltage = voltage > 0 ? voltage : 52.85,
                 BmsError = bmsError,
                 PulseResult = pulseResult,
