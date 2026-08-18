@@ -1,0 +1,8 @@
+index-B9BOjYy_.js:19 [config] No API_BASE_URL configured! Set VITE_API_BASE_URL at build time or window.__RUNTIME_CONFIG__.API_BASE_URL at runtime.
+(anonymous) @ index-B9BOjYy_.js:19
+index-B9BOjYy_.js:19 [config] Current hostname: 172.20.1.203 - refusing to auto-connect to prevent SSRF
+(anonymous) @ index-B9BOjYy_.js:19
+api/__UNCONFIGURED__/auth/me:1  Failed to load resource: the server responded with a status of 404 (Not Found)
+api/__UNCONFIGURED__/auth/login:1  Failed to load resource: the server responded with a status of 404 (Not Found)
+api/__UNCONFIGURED__/auth/login:1  Failed to load resource: the server responded with a status of 404 (Not Found)
+[NEW] Explain Console errors by using Copilot in Edge: click  to explain an error. Learn moreDon't show again

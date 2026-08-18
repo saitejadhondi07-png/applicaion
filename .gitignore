@@ -1,0 +1,66 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Secrets & Environment
+backend/appsettings.Production.json
+backend/appsettings.Development.json
+.env
+.env.production
+.env.local
+*.pem
+*.key
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Secrets and configuration
+**/appsettings.*.json
+!**/appsettings.json
+!**/appsettings.Development.json
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+backend/bin
+backend/obj
+backend/publish
+*.zip
+
+# Visual Studio / Rider local state
+.vs/
+*.suo
+*.user
+
+# Local databases (app runs on SQL Server; these are leftovers)
+*.db
+*.db-shm
+*.db-wal
+
+# Serilog output
+backend/logs/
+logs/
+
+# Local scratch / captures
+*.pptx
+Screenshot*.png
+screenshot*.png

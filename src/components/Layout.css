@@ -1,0 +1,494 @@
+/* ========================================================
+   Layout.css — Top Horizontal Navigation Bar (Dashboard.png)
+   ======================================================== */
+
+.app-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ---------- Top Navbar ---------- */
+.top-navbar {
+  height: 76px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 36px;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  height: 100%;
+}
+
+/* Brand Logo */
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.brand-logos-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff;
+  padding: 6px 14px;
+  border-radius: 10px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+}
+
+[data-theme='dark'] .brand-logos-container {
+  background: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.brand-logos-container:hover {
+  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.35);
+}
+
+.brand-logo-img {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+}
+
+.brand-logo-img.endurance-logo {
+  max-height: 32px;
+}
+
+.brand-logo-img.senseops-logo {
+  max-height: 28px;
+}
+
+.brand-logos-divider {
+  color: #cbd5e1;
+  font-weight: 300;
+  font-size: 1.2rem;
+  user-select: none;
+}
+
+.brand-text-block {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.brand-name {
+  font-size: 1.25rem;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: #0052cc;
+  font-family: 'Inter', sans-serif;
+}
+
+[data-theme='dark'] .brand-name {
+  color: #60a5fa;
+}
+
+.brand-tagline {
+  font-size: 0.72rem;
+  font-style: italic;
+  font-weight: 600;
+  color: #0284c7;
+  letter-spacing: 0.3px;
+}
+
+[data-theme='dark'] .brand-tagline {
+  color: #38bdf8;
+}
+
+/* Nav Links */
+.navbar-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+}
+
+.navbar-link {
+  display: flex;
+  align-items: center;
+  padding: 8px 18px;
+  border-radius: 14px;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.2px;
+}
+
+.navbar-link:hover {
+  color: var(--text-primary);
+  background: rgba(99, 102, 241, 0.08);
+  transform: translateY(-1px);
+}
+
+[data-theme='dark'] .navbar-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.navbar-link.active {
+  color: #ffffff;
+  font-weight: 700;
+  background: linear-gradient(135deg, #4f46e5 0%, #2563eb 100%);
+  box-shadow: 0 6px 18px rgba(79, 70, 229, 0.35);
+  transform: translateY(-1px);
+}
+
+[data-theme='dark'] .navbar-link.active {
+  background: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+}
+
+/* ---------- Navbar Right ---------- */
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* SenseOps Partner Badge */
+.navbar-partner-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 5px 14px;
+  border-radius: 20px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
+}
+
+[data-theme='dark'] .navbar-partner-badge {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.partner-badge-text {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+[data-theme='dark'] .partner-badge-text {
+  color: #cbd5e1;
+}
+
+.partner-badge-logo {
+  height: 18px;
+  width: auto;
+  object-fit: contain;
+}
+
+/* Search Box */
+.navbar-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(241, 245, 249, 0.8);
+  border: 1px solid rgba(203, 213, 225, 0.8);
+  border-radius: 24px;
+  padding: 8px 16px;
+  width: 270px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+[data-theme='dark'] .navbar-search-box {
+  background: rgba(15, 23, 42, 0.65);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.navbar-search-box:focus-within {
+  border-color: #4f46e5;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15), 0 4px 15px rgba(0, 0, 0, 0.05);
+  width: 320px;
+}
+
+[data-theme='dark'] .navbar-search-box:focus-within {
+  border-color: #6366f1;
+  background: rgba(15, 23, 42, 0.95);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.25), 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+
+.search-icon {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin-right: 8px;
+}
+
+.navbar-search-box input {
+  border: none;
+  background: transparent;
+  outline: none;
+  width: 100%;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+.navbar-search-box input::placeholder {
+  color: #94a3b8;
+}
+
+.clear-search-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0 4px;
+}
+
+.clear-search-btn:hover {
+  color: var(--text-primary);
+}
+
+/* Icon Buttons */
+.navbar-icon-btn {
+  position: relative;
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.navbar-icon-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
+}
+
+[data-theme='dark'] .navbar-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.notif-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  background: #ef4444;
+  border-radius: 50%;
+  border: 2px solid var(--bg-secondary);
+}
+
+/* User Profile & Avatar */
+.navbar-user-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 14px;
+  border-left: 1px solid var(--border-color);
+}
+
+.user-avatar-circle {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #3b82f6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s;
+}
+
+.user-avatar-circle:hover {
+  transform: scale(1.08) rotate(3deg);
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.5);
+}
+
+.logout-mini-btn {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 10px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logout-mini-btn:hover {
+  color: #ffffff;
+  background: #ef4444;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+}
+
+/* ---------- Main Content Area ---------- */
+.layout-content-area {
+  flex: 1;
+  padding: 24px 32px;
+  max-width: 1600px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1024px) {
+  .top-navbar {
+    padding: 0 16px;
+  }
+  .navbar-left {
+    gap: 16px;
+  }
+  .navbar-search-box {
+    width: 180px;
+  }
+  .navbar-search-box:focus-within {
+    width: 220px;
+  }
+}
+
+@media (max-width: 768px) {
+  .top-navbar {
+    height: auto;
+    flex-direction: column;
+    padding: 12px 16px;
+    gap: 12px;
+  }
+  .navbar-left, .navbar-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .navbar-links {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .navbar-search-box {
+    width: 100%;
+  }
+  .layout-content-area {
+    padding: 16px;
+  }
+}
+
+/* ---------- Settings Dropdown Menu ---------- */
+.settings-menu-container {
+  position: relative;
+  display: inline-block;
+}
+
+.settings-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 220px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1100;
+  animation: fadeIn 0.18s ease both;
+}
+
+.settings-dropdown-item {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s;
+  width: 100%;
+}
+
+.settings-dropdown-item:hover:not(.disabled) {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme='dark'] .settings-dropdown-item:hover:not(.disabled) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.settings-dropdown-item.disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+  font-weight: 600;
+}
+
+.settings-dropdown-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 0;
+}
+
+.settings-dropdown-item-header {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding-left: 12px;
+  margin-top: 4px;
+}
+
+.settings-dropdown-user-info {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  padding-left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-role-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #0052cc;
+  margin-top: 2px;
+}
+
+[data-theme='dark'] .user-role-badge {
+  color: #60a5fa;
+}

@@ -1,0 +1,207 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+:root {
+  /* Dark Mode (Default) - Deep Sleek Slate / Space Navy */
+  --bg-primary: #070913;
+  --bg-secondary: rgba(18, 24, 48, 0.65);
+  --bg-sidebar: rgba(13, 18, 38, 0.75);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  
+  --accent-primary: #6366f1;
+  --accent-secondary: #3b82f6;
+  --accent-glow: rgba(99, 102, 241, 0.25);
+  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #3b82f6 50%, #06b6d4 100%);
+  
+  --success-color: #10b981;
+  --danger-color: #f43f5e;
+  --warning-color: #f59e0b;
+  --info-color: #0ea5e9;
+  
+  --table-hover: rgba(99, 102, 241, 0.06);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 12px 35px rgba(99, 102, 241, 0.25);
+  --glass-bg: rgba(18, 24, 48, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --bg-glow-opacity: 0.16;
+  --card-blur: 20px;
+}
+
+[data-theme='light'] {
+  /* Light Mode - Crisp Executive White & Frosted Glass */
+  --bg-primary: #f1f5f9;
+  --bg-secondary: rgba(255, 255, 255, 0.85);
+  --bg-sidebar: rgba(255, 255, 255, 0.9);
+  --border-color: rgba(226, 232, 240, 0.8);
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #475569;
+  
+  --accent-primary: #4f46e5;
+  --accent-secondary: #2563eb;
+  --accent-glow: rgba(79, 70, 229, 0.15);
+  --accent-gradient: linear-gradient(135deg, #4f46e5 0%, #2563eb 50%, #0891b2 100%);
+  
+  --success-color: #059669;
+  --danger-color: #e11d48;
+  --warning-color: #d97706;
+  --info-color: #0284c7;
+  
+  --table-hover: rgba(79, 70, 229, 0.04);
+  --shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 8px 20px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 20px 45px rgba(15, 23, 42, 0.08);
+  --shadow-glow: 0 10px 30px rgba(79, 70, 229, 0.15);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --bg-glow-opacity: 0.1;
+  --card-blur: 20px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Theme transition — scoped to interactive elements only (not tables, scroll containers, etc.) */
+button, a, input, select, textarea,
+.card, .sidebar, .nav-item, .badge, .modal,
+.glass-card, .stat-card, .table-container {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+/* ---------- Scrollbar ---------- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) rgba(255, 255, 255, 0.03);
+}
+
+/* ---------- Focus Visible (Accessibility) ---------- */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* ---------- Selection ---------- */
+::selection {
+  background: rgba(124, 58, 237, 0.4);
+  color: #fff;
+}
+
+::-moz-selection {
+  background: rgba(124, 58, 237, 0.4);
+  color: #fff;
+}
+
+/* ---------- Ambient background glows ---------- */
+.bg-glow {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: var(--bg-glow-opacity);
+  pointer-events: none;
+  z-index: 0;
+  animation: floatGlow 30s ease-in-out infinite alternate;
+}
+
+.bg-glow-1 {
+  top: -10%;
+  left: -5%;
+  width: 45vw;
+  height: 45vw;
+  background: radial-gradient(circle, var(--accent-primary), var(--accent-secondary));
+}
+
+.bg-glow-2 {
+  bottom: -15%;
+  right: -5%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, var(--info-color), var(--accent-primary));
+  animation-delay: -10s;
+}
+
+@keyframes floatGlow {
+  0% {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  50% {
+    transform: translate(4vw, 8vh) scale(1.15) rotate(180deg);
+  }
+  100% {
+    transform: translate(-3vw, -5vh) scale(0.9) rotate(360deg);
+  }
+}
+
+/* ---------- BMS Error Badges (Global) ---------- */
+.bms-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981 !important;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  letter-spacing: 0.5px;
+}
+
+.bms-badge.err {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444 !important;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
