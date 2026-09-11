@@ -3,7 +3,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useReportData } from '../contexts/ReportDataContext';
 import { useReportMutations } from '../contexts/ReportMutationsContext';
 import { downloadReportExcel, downloadRawReportFiles } from '../utils/downloadUtils';
-import { API_BASE_URL } from '../config';
 import CustomModal from '../components/CustomModal';
 import './ReportsPage.css';
 
@@ -312,7 +311,7 @@ export default function ReportsPage() {
               {paged.length > 0 ? (
                 paged.map((report) => (
                   <tr key={report.id}>
-                    <td>{report.id}</td>
+                    <td>{report.testReportId || report.id}</td>
                     <td>{report.testEngineer ?? '—'}</td>
                     <td>
                       <span className={statusClass(report.status)}>

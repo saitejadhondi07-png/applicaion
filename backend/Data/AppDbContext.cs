@@ -21,6 +21,7 @@ namespace Endurance.API.Data
             modelBuilder.Entity<Report>()
                 .HasKey(r => r.Id);
             modelBuilder.Entity<Report>().Property(r => r.Status).HasMaxLength(50);
+            modelBuilder.Entity<Report>().Property(r => r.TestReportId).HasMaxLength(64);
 
             modelBuilder.Entity<ReportFile>().HasKey(rf => rf.Id);
             
@@ -64,6 +65,13 @@ namespace Endurance.API.Data
             
             modelBuilder.Entity<Report>()
                 .HasIndex(r => r.UploadDate);
+
+            // Two reports must never share a controlled document number. Filtered so the
+            // legacy rows that predate this column (all NULL) do not collide with each other.
+            modelBuilder.Entity<Report>()
+                .HasIndex(r => r.TestReportId)
+                .IsUnique()
+                .HasFilter("[TestReportId] IS NOT NULL");
             
             modelBuilder.Entity<ReportFile>()
                 .HasIndex(rf => rf.ReportId);

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
@@ -87,6 +87,43 @@ namespace Endurance.API.Controllers
                 Role = user.Role,
                 Avatar = user.Avatar
             });
+        }
+
+        /// <summary>
+        /// Sets another account's password. Administrator only - this controller is
+        /// [Authorize(Roles = "admin")]. Replaces the anonymous /api/auth/forgot-password
+        /// endpoint, which let anyone reset any account including admin.
+        /// </summary>
+        [HttpPut("{id}/password")]
+        public async Task<IActionResult> ResetPassword(string id, [FromBody] ResetPasswordRequestDto request)
+        {
+            if (string.IsNullOrWhiteSpace(id) || id.Contains("..") || id.Contains("/") || id.Contains("\\"))
+            {
+                return BadRequest(new { message = "Invalid user ID" });
+            }
+
+            var user = await _context.Users.FindAsync(id);
+            if (user == null)
+            {
+                return NotFound(new { message = "User not found" });
+            }
+
+            user.Password = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+
+            // Sign the account out everywhere. A password reset exists to lock someone out,
+            // and a live refresh token would otherwise keep the old session working for 30 days.
+            var liveTokens = await _context.RefreshTokens
+                .Where(rt => rt.UserId == user.Id && !rt.IsRevoked)
+                .ToListAsync();
+            foreach (var token in liveTokens)
+            {
+                token.IsRevoked = true;
+                token.RevokedAt = DateTime.UtcNow;
+                token.ReasonRevoked = "Password reset by administrator";
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Password updated. The user must sign in again." });
         }
 
         [HttpDelete("{id}")]

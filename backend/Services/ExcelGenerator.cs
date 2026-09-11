@@ -69,7 +69,9 @@ namespace Endurance.API.Services
                 }
             }
 
-            FillAdjacent("Test Report ID", report.Id, 2); // In template, ID is 2 cols over
+            // The plant's controlled document number, not the internal database key. Older
+            // reports predate TestReportId and fall back to Id so they still render.
+            FillAdjacent("Test Report ID", report.TestReportId ?? report.Id, 2); // In template, ID is 2 cols over
             FillAdjacent("Model No", report.ModelNumber, 1);
             
             string testDateStr = report.UploadDate.ToLocalTime().ToString("dd.MM.yyyy");
@@ -224,17 +226,22 @@ namespace Endurance.API.Services
                 }
             }
 
-            // Delete the unused worksheet "a" if present
-            var sheetA = package.Workbook.Worksheets["a"];
-            if (sheetA != null)
+            // Drop the template's internal sheets so they do not ship inside a signed report.
+            // "a" is scratch; "Details" is the authoring spec (cell-range notes, a stale model
+            // number, "Already Formula added in Sheet") and was being delivered to the customer.
+            foreach (var internalSheet in new[] { "a", "Details", "Observations" })
             {
-                package.Workbook.Worksheets.Delete(sheetA);
+                var sheet = package.Workbook.Worksheets[internalSheet];
+                if (sheet != null)
+                {
+                    package.Workbook.Worksheets.Delete(sheet);
+                }
             }
 
-            // Rename target sheet to model number safely
-            string safeModelNum = report.ModelNumber.Replace(":", "-").Replace("/", "-");
-            if (safeModelNum.Length > 31) safeModelNum = safeModelNum.Substring(0, 31);
-            ws.Name = safeModelNum;
+            // The worksheet keeps the template's tab name on purpose - signed plant reports
+            // do the same, and ProcessExcel locates a compiled report by Name.Contains("ENE5160"),
+            // so renaming the tab to the model ("ENE-5160-15A", no match) would make a generated
+            // report unreadable if it were ever re-uploaded.
 
             package.Workbook.Calculate();
             using var ms = new MemoryStream();

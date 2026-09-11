@@ -8,6 +8,7 @@ export function normalizeReport(r) {
   if (!r) return null;
   
   const id = r.id || r.Id || '';
+  const testReportId = r.testReportId || r.TestReportId || null;
   const modelNumber = r.modelNumber || r.ModelNumber || '';
   const testEngineer = r.testEngineer || r.TestEngineer || '';
   const testEngineerId = r.testEngineerId || r.TestEngineerId || '';
@@ -59,6 +60,7 @@ export function normalizeReport(r) {
 
   return {
     id,
+    testReportId,
     modelNumber,
     testEngineer,
     testEngineerId,
@@ -87,7 +89,7 @@ const normalizeRecord = (rec) => {
     chDeltaV: rec.chDeltaV !== undefined ? rec.chDeltaV : (rec.ChDeltaV || 0),
     chDeltaT: rec.chDeltaT !== undefined ? rec.chDeltaT : (rec.ChDeltaT || 0),
     shortChDeltaV: rec.shortChDeltaV !== undefined ? rec.shortChDeltaV : (rec.ShortChDeltaV || 0),
-    shortDchDeltaV: rec.shortDchDeltaV !== undefined ? rec.ShortDchDeltaV || rec.shortDchDeltaV || 0 : (rec.ShortDchDeltaV || 0),
+    shortDchDeltaV: rec.shortDchDeltaV !== undefined ? rec.shortDchDeltaV : (rec.ShortDchDeltaV || 0),
     soc: rec.soc !== undefined ? rec.soc : (rec.Soc || 0),
     voltage: rec.voltage !== undefined ? rec.voltage : (rec.Voltage || 0),
     bmsError: rec.bmsError || rec.BmsError || 'NO',

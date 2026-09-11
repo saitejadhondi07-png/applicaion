@@ -1,8 +1,18 @@
-namespace Endurance.API.Models
+﻿namespace Endurance.API.Models
 {
     public class LoginRequest
     {
+        // [ApiController] only returns 400 for a malformed body when the model carries
+        // validation attributes. Without these, an omitted userId reached
+        // request.UserId.ToLower() and the login endpoint answered 500.
+        // Deliberately no minimum password length: this is the sign-in path, and enforcing
+        // today's policy here would lock out every account created under an older one.
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(20, MinimumLength = 1)]
         public string UserId { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(128, MinimumLength = 1)]
         public string Password { get; set; } = string.Empty;
     }
 
@@ -14,11 +24,6 @@ namespace Endurance.API.Models
         public string Role { get; set; } = string.Empty;
         public string Avatar { get; set; } = string.Empty;
         public string AccessToken { get; set; } = string.Empty;
-    }
-
-    public class RefreshTokenRequest
-    {
-        public string RefreshToken { get; set; } = string.Empty;
     }
 
     public class RefreshToken

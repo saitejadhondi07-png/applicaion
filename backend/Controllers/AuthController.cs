@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -106,7 +106,10 @@ namespace Endurance.API.Controllers
             storedToken.ReasonRevoked = "Rotated";
 
             var newRefreshToken = GenerateRefreshToken(user.Id);
-            newRefreshToken.ReplacedByToken = newRefreshToken.Token;
+            // The replaced-by pointer belongs on the token being retired, not on the new one.
+            // It used to be set on newRefreshToken, pointing at itself, so the rotation chain
+            // could not be followed when investigating a stolen token.
+            storedToken.ReplacedByToken = newRefreshToken.Token;
             user.RefreshTokens.Add(newRefreshToken);
             await _context.SaveChangesAsync();
 
@@ -259,30 +262,12 @@ namespace Endurance.API.Controllers
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-        [HttpPost("forgot-password")]
-        [AllowAnonymous]
-        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
-        {
-            if (string.IsNullOrWhiteSpace(request.UserId))
-            {
-                return BadRequest(new { message = "User ID is required." });
-            }
-            if (string.IsNullOrWhiteSpace(request.NewPassword))
-            {
-                return BadRequest(new { message = "New Password is required." });
-            }
-
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == request.UserId);
-            if (user == null)
-            {
-                return NotFound(new { message = "User ID not found." });
-            }
-
-            user.Password = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = "Password has been successfully reset." });
-        }
+        // SECURITY: the anonymous "forgot-password" endpoint that used to sit here took a
+        // user id and a new password and reset that account, with no proof of identity at all.
+        // Anyone who could reach the API could take over any account, including admin.
+        // There is no mail server here to send a reset link through, so password resets are an
+        // administrator action: PUT /api/users/{id}/password (admin only). Users who lock
+        // themselves out ask an administrator.
 
         private RefreshToken GenerateRefreshToken(string userId)
         {
@@ -318,14 +303,4 @@ namespace Endurance.API.Controllers
         }
     }
 
-    public class ForgotPasswordRequest
-    {
-        [System.ComponentModel.DataAnnotations.Required]
-        [System.ComponentModel.DataAnnotations.StringLength(20, MinimumLength = 4)]
-        public string UserId { get; set; } = string.Empty;
-
-        [System.ComponentModel.DataAnnotations.Required]
-        [System.ComponentModel.DataAnnotations.StringLength(128, MinimumLength = 8)]
-        public string NewPassword { get; set; } = string.Empty;
-    }
 }

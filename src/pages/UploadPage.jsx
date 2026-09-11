@@ -2,10 +2,11 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useReportMutations } from '../contexts/ReportMutationsContext';
 import { useAuth } from '../contexts/AuthContext';
-import { parseFiles, extractBatteryPackId } from '../utils/fileParser';
+import { parseFiles } from '../utils/fileParser';
 import './UploadPage.css';
 import Swal from 'sweetalert2';
-
+import { MODEL_NUMBER } from '../config';
+import { escapeHtml } from '../utils/html';
 
 export default function UploadPage() {
   const { addReport } = useReportMutations();
@@ -13,7 +14,7 @@ export default function UploadPage() {
   const fileInputRef = useRef(null);
 
   const [filesList, setFilesList] = useState([]); // List of uploaded files
-  const [modelNumber, setModelNumber] = useState('ENE5160-BTR-PP-CDC01-DDM2601');
+  const [modelNumber, setModelNumber] = useState(MODEL_NUMBER);
   const [dragOver, setDragOver] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showProcessing, setShowProcessing] = useState(false);
@@ -48,11 +49,13 @@ export default function UploadPage() {
   const parseFilesWrapper = useCallback(
     async (selectedFiles) => {
       setErrorMessage('');
-      
+
       setUploading(true);
+      setIsParsing(true);
+      setParseProgress(0);
 
       try {
-        const results = await parseFiles(selectedFiles);
+        const results = await parseFiles(selectedFiles, setParseProgress);
         setFilesList(prev => [...prev, ...results.filesList]);
 
         if (results.failed.length > 0) {
@@ -73,10 +76,11 @@ export default function UploadPage() {
           color: '#fff'
         });
       } finally {
+        setIsParsing(false);
         setUploading(false);
       }
     },
-    [parseFiles]
+    []
   );
 
   const handleDrop = useCallback(
@@ -122,7 +126,7 @@ export default function UploadPage() {
 
   const handleClearAll = () => {
     setFilesList([]);
-    setModelNumber('ENE5160-BTR-PP-CDC01-DDM2601');
+    setModelNumber(MODEL_NUMBER);
     setErrorMessage('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -169,9 +173,12 @@ export default function UploadPage() {
           
           let errorDetails = '<ul style="text-align: left; background: rgba(239, 68, 68, 0.1); padding: 10px; border-radius: 5px; list-style-type: none;">';
           backendFailed.forEach(f => {
-            errorDetails += `<li style="margin-bottom: 8px; font-size: 13px;"><strong>${f.name}</strong><br/>${f.error}</li>`;
+            errorDetails += `<li style="margin-bottom: 8px; font-size: 13px;"><strong>${escapeHtml(f.name)}</strong><br/>${escapeHtml(f.error)}</li>`;
           });
           errorDetails += '</ul>';
+
+          setFailedFiles(backendFailed);
+          setShowErrorPopup(true);
 
           Swal.fire({
             icon: 'error',
@@ -206,11 +213,11 @@ export default function UploadPage() {
       if (err.response?.data?.failedFiles && Array.isArray(err.response.data.failedFiles)) {
         errorDetails = '<ul style="text-align: left; background: rgba(239, 68, 68, 0.1); padding: 10px; border-radius: 5px; list-style-type: none;">';
         err.response.data.failedFiles.forEach(f => {
-          errorDetails += `<li style="margin-bottom: 8px; font-size: 13px;">${f}</li>`;
+          errorDetails += `<li style="margin-bottom: 8px; font-size: 13px;">${escapeHtml(f)}</li>`;
         });
         errorDetails += '</ul>';
       } else {
-        errorDetails = `<p style="color: #ef4444">${errorMsg}</p>`;
+        errorDetails = `<p style="color: #ef4444">${escapeHtml(errorMsg)}</p>`;
       }
 
       Swal.fire({

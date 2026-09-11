@@ -17,7 +17,7 @@ namespace backend.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.10")
+                .HasAnnotation("ProductVersion", "10.0.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -122,6 +122,10 @@ namespace backend.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("TestReportId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<DateTime>("UploadDate")
                         .HasColumnType("datetime2");
 
@@ -130,6 +134,10 @@ namespace backend.Migrations
                     b.HasIndex("Status");
 
                     b.HasIndex("TestEngineerId");
+
+                    b.HasIndex("TestReportId")
+                        .IsUnique()
+                        .HasFilter("[TestReportId] IS NOT NULL");
 
                     b.HasIndex("UploadDate");
 

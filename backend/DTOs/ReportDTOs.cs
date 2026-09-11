@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 
 namespace Endurance.API.DTOs
@@ -23,6 +23,10 @@ namespace Endurance.API.DTOs
     public class ReportResponseDto
     {
         public string Id { get; set; } = string.Empty;
+
+        /// <summary>Plant document number, e.g. "ENE5160-BTR-PP-CDC01-24F2601". Null on legacy reports.</summary>
+        public string? TestReportId { get; set; }
+
         public string ModelNumber { get; set; } = string.Empty;
         public string TestEngineer { get; set; } = string.Empty;
         public string TestEngineerId { get; set; } = string.Empty;
@@ -52,10 +56,13 @@ namespace Endurance.API.DTOs
         [RegularExpression("^(generated|reviewed|approved|rejected)$", ErrorMessage = "Invalid status")]
         public string Status { get; set; } = string.Empty;
 
-        [Required]
+        /// <summary>
+        /// Ignored. ReportsController overwrites both from the access token before the service
+        /// sees them - see ReportsController.CurrentUser. Kept on the DTO so existing clients
+        /// that still post them are not rejected.
+        /// </summary>
         public string UserId { get; set; } = string.Empty;
 
-        [Required]
         [StringLength(100)]
         public string UserName { get; set; } = string.Empty;
     }
@@ -107,6 +114,10 @@ namespace Endurance.API.DTOs
     public class ReportDetailResponseDto
     {
         public string Id { get; set; } = string.Empty;
+
+        /// <summary>Plant document number, e.g. "ENE5160-BTR-PP-CDC01-24F2601". Null on legacy reports.</summary>
+        public string? TestReportId { get; set; }
+
         public string ModelNumber { get; set; } = string.Empty;
         public string TestEngineer { get; set; } = string.Empty;
         public string TestEngineerId { get; set; } = string.Empty;

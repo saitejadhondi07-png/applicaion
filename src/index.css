@@ -203,5 +203,35 @@ textarea:focus-visible,
   border: 1px solid rgba(239, 68, 68, 0.25);
 }
 
+/* ---------- Result Badges (Pulse / SOC / CDC / Overall) ---------- */
+.res-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981 !important;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.res-badge.fail,
+.res-badge.can.stuck {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444 !important;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.res-badge.hold {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b !important;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
 
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }

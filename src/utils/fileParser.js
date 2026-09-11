@@ -1,6 +1,14 @@
+// The pack ID is a "T" plus 11 alphanumerics standing alone between separators, e.g.
+// "G14_COM14__Profile_Test_TFA3633001BA_DESKTOP-2CDN5CI_...csv" -> "TFA3633001BA".
+// Must stay in step with ExtractBatteryPackId in backend/Services/ReportCalculator.cs.
+// Written with a consumed prefix group rather than a lookbehind so it parses in every
+// browser. An unanchored /T[A-Z0-9]{11}/ could start mid-token and return 12 characters
+// that are not a pack ID.
+const PACK_ID_RE = /(^|[^A-Z0-9])(T[A-Z0-9]{11})(?![A-Z0-9])/i;
+
 export const extractBatteryPackId = (filename) => {
-  const match = filename.match(/T[A-Z0-9]{11}/i);
-  return match ? match[0].toUpperCase() : '';
+  const match = filename.match(PACK_ID_RE);
+  return match ? match[2].toUpperCase() : '';
 };
 
 const checkFileSignature = (file) => {
@@ -43,7 +51,7 @@ const checkFileSignature = (file) => {
           }
           
           resolve('unknown');
-        } catch (err) {
+        } catch {
           resolve('unknown');
         }
       }
@@ -75,7 +83,7 @@ export const processSingleFile = async (file) => {
 
     // Deep validation removed to make parsing instant. The backend will validate the file anyway.
     
-    const hasPackId = /T[A-Z0-9]{11}/i.test(file.name);
+    const hasPackId = PACK_ID_RE.test(file.name);
     // Treat all valid .xlsx as raw data - let backend decide
     const packId = extractBatteryPackId(file.name);
     return { type: 'raw_excel', packId, hasPackId };
@@ -105,7 +113,7 @@ export const processSingleFile = async (file) => {
       return { type: 'unsupported', error: 'Could not read CSV file.' };
     }
 
-    const hasPackId = /T[A-Z0-9]{11}/i.test(file.name);
+    const hasPackId = PACK_ID_RE.test(file.name);
     const packId = extractBatteryPackId(file.name);
     return { type: 'raw_csv', packId, hasPackId };
   } else {
@@ -137,6 +145,18 @@ export const parseFiles = async (files, onProgress) => {
     const ext = file.name.split('.').pop().toLowerCase();
     if (ext !== 'csv' && ext !== 'xlsx') {
       results.failed.push({ name: file.name, error: 'Unsupported file type (.csv and .xlsx only)' });
+      continue;
+    }
+
+    // A raw export is identified only by its filename. With no pack ID in the name the
+    // record cannot be attributed to a pack, and the backend used to invent one from the
+    // filename ("G2_COM2__..." became "TFAG2COM2PRO"), filing real measurements under a
+    // pack that does not exist. Rejected here and again server-side.
+    if (!PACK_ID_RE.test(file.name)) {
+      results.failed.push({
+        name: file.name,
+        error: 'No Battery Pack ID in the filename. Expected a 12-character ID such as TFA3633001BA. Rename the export to include the pack ID.',
+      });
       continue;
     }
 

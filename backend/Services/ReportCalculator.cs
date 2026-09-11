@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -21,9 +21,17 @@ namespace Endurance.API.Services
         }
 
         /// <summary>
-        /// Header fragments that identify the operator-entered "User SoC" column.
+        /// Header fragments that identify the operator-entered User SoC column.
+        /// The BTS exports name it "SoC_User(%)" (noun first); earlier revisions and some
+        /// hand-compiled sheets write "User SoC". Both orders are matched - matching only
+        /// "user soc" silently missed the real export header and fell through to Real SoC.
         /// </summary>
-        private static readonly string[] UserSocPatterns = { "user soc", "user_soc", "usersoc", "user state of charge" };
+        private static readonly string[] UserSocPatterns =
+        {
+            "soc_user", "soc user", "socuser",
+            "user soc", "user_soc", "usersoc", "user state of charge",
+            "state_of_charge_user", "state of charge (user"
+        };
 
         /// <summary>
         /// Picks the SoC column, preferring the operator-entered "User SoC" over the
@@ -45,17 +53,75 @@ namespace Endurance.API.Services
             return headers.FindIndex(h => h.Contains("state_of_charge") || h.Contains("soc"));
         }
 
+        /// <summary>
+        /// Reads the battery pack ID out of a raw export's filename, e.g.
+        /// "G14_COM14__Profile_Test_TFA3633001BA_DESKTOP-2CDN5CI_...csv" -> "TFA3633001BA".
+        ///
+        /// The ID is a "T" plus 11 alphanumerics, and it must stand alone between
+        /// separators. The lookaround matters: without it the match could start in the
+        /// middle of a longer alphanumeric run and return 12 characters that are not a
+        /// pack ID at all.
+        ///
+        /// Returns an empty string when the filename carries no pack ID. It deliberately
+        /// does NOT invent one. It used to fall back to "TFA" + the first 9 characters of
+        /// the squashed filename, which turned an operator's mis-named export
+        /// ("..._Test- Step_1_DESKTOP-...csv", pack ID simply left out) into the
+        /// plausible-looking ID "TFAG2COM2PRO" and filed that pack's real measurements
+        /// under it. Callers reject the file instead.
+        /// </summary>
+        // Header patterns for the four delta columns of a compiled sheet.
+        //
+        // The charge patterns carry a (?<![a-z]) guard because "dch_deltav" *contains*
+        // "ch_deltav" as a substring. Matching the charge column with a plain Contains()
+        // returned the DISCHARGE column whenever DCH sat to its left - which is the order the
+        // plant template uses - so every compiled-sheet upload scored CH_DeltaV and CH_Delta_T
+        // against the discharge readings. Raw CSV/XLSX exports were unaffected: they select
+        // rows by Step State, not by these headers.
+        private const string DchVolts = @"dch[_ ]?delta[_ ]?v";
+        private const string DchTemp = @"dch[_ ]?delta[_ ]?_?t";
+        private const string ChVolts = @"(?<![a-z])ch[_ ]?delta[_ ]?v";
+        private const string ChTemp = @"(?<![a-z])ch[_ ]?delta[_ ]?_?t";
+
+        /// <summary>
+        /// Indices of every header matching <paramref name="pattern"/>, in sheet order. The
+        /// plant sheet lists each delta twice - the main test, then the Short CDC repeat - so
+        /// callers take element 0 for the main column and element 1 for the Short CDC one.
+        /// </summary>
+        private static List<int> FindColumns(List<string> headers, string pattern)
+        {
+            var found = new List<int>();
+            for (int i = 0; i < headers.Count; i++)
+            {
+                if (Regex.IsMatch(headers[i], pattern, RegexOptions.IgnoreCase)) found.Add(i);
+            }
+            return found;
+        }
+
+        private static int ColumnAt(List<int> columns, int occurrence) =>
+            occurrence < columns.Count ? columns[occurrence] : -1;
+
         public string ExtractBatteryPackId(string fileName)
         {
-            var match = Regex.Match(fileName, @"T[A-Z0-9]{11}", RegexOptions.IgnoreCase);
-            if (match.Success)
+            var match = Regex.Match(fileName, @"(?<![A-Z0-9])T[A-Z0-9]{11}(?![A-Z0-9])", RegexOptions.IgnoreCase);
+            return match.Success ? match.Value.ToUpper() : string.Empty;
+        }
+
+        /// <summary>
+        /// Pack ID for a raw export, or an exception naming the file. A raw file is
+        /// identified only by its name, so a file with no ID in its name cannot be
+        /// attributed to a pack and must not enter the report.
+        /// </summary>
+        private string RequirePackId(string fileName)
+        {
+            var packId = ExtractBatteryPackId(fileName);
+            if (packId.Length == 0)
             {
-                return match.Value.ToUpper();
+                throw new InvalidOperationException(
+                    "No Battery Pack ID in the filename. Expected a 12-character ID such as " +
+                    "TFA3633001BA between separators. Rename the export to include the pack ID " +
+                    "and upload it again.");
             }
-            
-            string baseName = Path.GetFileNameWithoutExtension(fileName);
-            string clean = Regex.Replace(baseName, @"[^A-Z0-9]", "", RegexOptions.IgnoreCase).ToUpper();
-            return clean.StartsWith('T') && clean.Length >= 12 ? clean.Substring(0, 12) : $"TFA{clean.Substring(0, Math.Min(9, clean.Length))}";
+            return packId;
         }
 
         public List<PackRecord> ProcessExcel(Stream stream, string fileName)
@@ -126,21 +192,6 @@ namespace Endurance.API.Services
                                     return double.TryParse(cleanVal, out double d) ? d : 0;
                                 }
 
-                                double GetColValOcc(string[] patterns, int occurrence = 0, bool isFloat = false)
-                                {
-                                    var indices = new List<int>();
-                                    for (int i = 0; i < headers.Count; i++)
-                                    {
-                                        if (patterns.Any(p => headers[i].Contains(p))) indices.Add(i);
-                                    }
-                                    if (indices.Count == 0) return 0;
-                                    int idx = occurrence < indices.Count ? indices[occurrence] : indices.Last();
-                                    var cellVal = ws.Cells[r, idx + 1].Value?.ToString();
-                                    if (string.IsNullOrEmpty(cellVal)) return 0;
-                                    string cleanVal = Regex.Replace(cellVal, @"[^0-9.-]", "");
-                                    return double.TryParse(cleanVal, out double d) ? d : 0;
-                                }
-
                                 double GetColValAt(int idx)
                                 {
                                     if (idx == -1) return 0;
@@ -157,16 +208,24 @@ namespace Endurance.API.Services
                                     return ws.Cells[r, idx + 1].Value?.ToString()?.Trim() ?? "";
                                 }
 
+                                var dchVoltCols = FindColumns(headers, DchVolts);
+                                var chVoltCols = FindColumns(headers, ChVolts);
+                                var dchTempCols = FindColumns(headers, DchTemp);
+                                var chTempCols = FindColumns(headers, ChTemp);
+
                                 int idleDeltaV = (int)GetColVal(new[] { "idle deltav", "idle delta v" });
                                 double idleDeltaT = GetColVal(new[] { "idle delta_t", "idle delta t" }, true);
-                                int dchDeltaV = (int)GetColVal(new[] { "dch_deltav", "dch delta v", "dch_delta v" });
-                                double dchDeltaT = GetColVal(new[] { "dch_delta_t", "dch delta t", "dch_delta t" }, true);
-                                int chDeltaV = (int)GetColVal(new[] { "ch_deltav", "ch delta v", "ch_delta v" });
-                                double chDeltaT = GetColVal(new[] { "ch_delta_t", "ch delta t", "ch_delta t" }, true);
-                                int shortChDeltaV = (int)GetColValOcc(new[] { "short cdc ch", "short ch" });
-                                if (shortChDeltaV == 0) shortChDeltaV = (int)GetColValOcc(new[] { "ch_deltav", "ch delta v", "ch_delta v" }, 1);
-                                int shortDchDeltaV = (int)GetColValOcc(new[] { "short cdc dch", "short dch" });
-                                if (shortDchDeltaV == 0) shortDchDeltaV = (int)GetColValOcc(new[] { "dch_deltav", "dch delta v", "dch_delta v" }, 1);
+                                int dchDeltaV = (int)GetColValAt(ColumnAt(dchVoltCols, 0));
+                                double dchDeltaT = GetColValAt(ColumnAt(dchTempCols, 0));
+                                int chDeltaV = (int)GetColValAt(ColumnAt(chVoltCols, 0));
+                                double chDeltaT = GetColValAt(ColumnAt(chTempCols, 0));
+
+                                // An explicitly labelled "Short CDC" column wins; otherwise the
+                                // second occurrence of the delta column is the Short CDC repeat.
+                                int shortChDeltaV = (int)GetColVal(new[] { "short cdc ch", "short ch" });
+                                if (shortChDeltaV == 0) shortChDeltaV = (int)GetColValAt(ColumnAt(chVoltCols, 1));
+                                int shortDchDeltaV = (int)GetColVal(new[] { "short cdc dch", "short dch" });
+                                if (shortDchDeltaV == 0) shortDchDeltaV = (int)GetColValAt(ColumnAt(dchVoltCols, 1));
                                 // Prefer "User SoC" over "State of Charge (Real SoC)" - a plain
                                 // Contains("soc") match returns whichever column sits further left.
                                 double soc = GetColValAt(FindSocColumn(headers));
@@ -217,6 +276,7 @@ namespace Endurance.API.Services
                                 records.Add(new PackRecord
                                 {
                                     BatteryPackId = packId.ToUpper(),
+                                    SourceFile = fileName,
                                     IdleDeltaV = idleDeltaV,
                                     IdleDeltaT = idleDeltaT,
                                     DchDeltaV = dchDeltaV,
@@ -244,7 +304,7 @@ namespace Endurance.API.Services
 
         public PackRecord ProcessRawCsv(string filePath, string fileName)
         {
-            string packId = ExtractBatteryPackId(fileName);
+            string packId = RequirePackId(fileName);
             
             // Try multiple encodings for the stream
             var encodingsToTry = new[]
@@ -337,12 +397,14 @@ namespace Endurance.API.Services
                 throw new InvalidOperationException($"No valid data rows found in CSV after filtering. Total extracted: {dataRows.Count}");
             }
 
-            return ProcessRawDataRows(dataRows, packId, stepIdIdx, maxVoltIdx, minVoltIdx, maxTempIdx, minTempIdx, socIdx, voltIdx, currentIdx, stateIdx, errorIdx);
+            var csvRecord = ProcessRawDataRows(dataRows, packId, stepIdIdx, maxVoltIdx, minVoltIdx, maxTempIdx, minTempIdx, socIdx, voltIdx, currentIdx, stateIdx, errorIdx);
+            csvRecord.SourceFile = fileName;
+            return csvRecord;
         }
 
         public PackRecord ProcessRawExcel(Stream stream, string fileName)
         {
-            string packId = ExtractBatteryPackId(fileName);
+            string packId = RequirePackId(fileName);
             try
             {
                 using (var package = new OfficeOpenXml.ExcelPackage(stream))
@@ -406,7 +468,9 @@ namespace Endurance.API.Services
                         throw new InvalidOperationException("Excel file has no valid data rows with numeric Step IDs");
                     }
 
-                    return ProcessRawDataRows(dataRows, packId, stepIdIdx, maxVoltIdx, minVoltIdx, maxTempIdx, minTempIdx, socIdx, voltIdx, currentIdx, stateIdx, errorIdx);
+                    var excelRecord = ProcessRawDataRows(dataRows, packId, stepIdIdx, maxVoltIdx, minVoltIdx, maxTempIdx, minTempIdx, socIdx, voltIdx, currentIdx, stateIdx, errorIdx);
+                    excelRecord.SourceFile = fileName;
+                    return excelRecord;
                 }
             }
             catch (Exception ex)

@@ -1,7 +1,16 @@
 import { saveAs } from 'file-saver';
 import ExcelJS from 'exceljs';
-import { API_BASE_URL } from '../config';
 import api from './api';
+
+// Plant naming convention: document number, then the report date.
+// e.g. ENE5160-BTR-PP-CDC01-24F2601_24_Jun_2026.xlsx
+// Falls back to the internal id for reports created before document numbers existed.
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function reportFileStem(report) {
+  const d = report?.uploadDate ? new Date(report.uploadDate) : new Date();
+  const datePart = `${String(d.getDate()).padStart(2, '0')}_${MONTHS[d.getMonth()]}_${d.getFullYear()}`;
+  return `${report?.testReportId || report?.id || 'Report'}_${datePart}`;
+}
 
 export async function downloadReportExcel(report, records, filter = 'Combination', onProgress) {
   if (!report) {
@@ -24,8 +33,7 @@ export async function downloadReportExcel(report, records, filter = 'Combination
       });
       
       const blob = response.data;
-      const dateStr = report.uploadDate ? new Date(report.uploadDate).toISOString().split('T')[0].replace(/-/g, '') : new Date().toISOString().split('T')[0].replace(/-/g, '');
-      const outputName = `${report.modelNumber || 'Report'}_Report_${dateStr}.xlsx`;
+      const outputName = `${reportFileStem(report)}.xlsx`;
       saveAs(blob, outputName);
       if (onProgress) onProgress(100);
       return;
@@ -54,7 +62,7 @@ export async function downloadReportExcel(report, records, filter = 'Combination
     
     // 5. Fill header info
     // Report ID in D5
-    sheet.getCell('D5').value = report.id || `ENE5160-BTR-PP-CDC01-${Date.now().toString().substring(6)}`;
+    sheet.getCell('D5').value = report.testReportId || report.id || '';
     // Model No in C6
     sheet.getCell('C6').value = report.modelNumber || 'ENE-5160-15A';
     
@@ -107,9 +115,12 @@ export async function downloadReportExcel(report, records, filter = 'Combination
       // BMS Error
       sheet.getCell(`N${rowIndex}`).value = rec.bmsError;
       
-      // Formulas
-      sheet.getCell(`O${rowIndex}`).value = { formula: `IF(OR(F${rowIndex}>10,H${rowIndex}>8),"Hold","Pass")` };
-      sheet.getCell(`P${rowIndex}`).value = { formula: `IF(OR(O${rowIndex}="Hold", N${rowIndex}<>"NO", D${rowIndex}>5, E${rowIndex}>1.5),"Hold","Pass")` };
+      // Verdicts are written as the values the backend already scored, NOT re-derived here.
+      // This path used to embed its own formulas with different limits (F>10/H>8/E>1.5 vs the
+      // configured 11/9/2.0) and wrote "Hold" where the backend writes "Fail", so a fallback
+      // download silently disagreed with the report of record.
+      sheet.getCell(`O${rowIndex}`).value = rec.pulseResult ?? 'Pass';
+      sheet.getCell(`P${rowIndex}`).value = rec.overallResult ?? 'Pass';
     });
     
     // 7. Clear any remaining template rows that were not overwritten to preserve formatting but remove old mock data
@@ -168,8 +179,7 @@ export async function downloadReportExcel(report, records, filter = 'Combination
     // 14. Write buffer and trigger save
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const dateStr = report.uploadDate ? new Date(report.uploadDate).toISOString().split('T')[0].replace(/-/g, '') : new Date().toISOString().split('T')[0].replace(/-/g, '');
-    const outputName = `${report.modelNumber || 'Report'}_Report_${dateStr}.xlsx`;
+    const outputName = `${reportFileStem(report)}.xlsx`;
     saveAs(blob, outputName);
     
   } catch (err) {
@@ -214,8 +224,7 @@ function downloadFallbackCsv(report, records) {
   });
   
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const dateStr = report.uploadDate ? new Date(report.uploadDate).toISOString().split('T')[0].replace(/-/g, '') : new Date().toISOString().split('T')[0].replace(/-/g, '');
-  saveAs(blob, `${report.modelNumber}_Report_${dateStr}.csv`);
+  saveAs(blob, `${reportFileStem(report)}.csv`);
 }
 
 export async function downloadRawReportFiles(report) {

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Mvc;
@@ -244,9 +244,9 @@ try
         // Ensure physical storage and logs directories exist for IIS hosting (even if DB is temporarily unreachable)
         try
         {
-            string rawDir = Path.Combine(AppContext.BaseDirectory, "Storage", "RawFiles");
-            if (!Directory.Exists(rawDir)) Directory.CreateDirectory(rawDir);
-
+            // Raw upload storage is created by ReportService at the configured path
+            // (Storage:RawFilesPath). A "Storage/RawFiles" folder used to be created here that
+            // no code ever read from or wrote to.
             string logsDir = Path.Combine(AppContext.BaseDirectory, "logs");
             if (!Directory.Exists(logsDir)) Directory.CreateDirectory(logsDir);
         }
@@ -261,7 +261,30 @@ try
             }
             catch (Exception ex)
             {
-                Log.Warning("Could not apply migrations automatically (tables may already exist). Skipping. Details: " + ex.Message);
+                // Migrate() stops at the first migration that throws, so everything after it is
+                // skipped too. On a database that predates migration tracking, migration #1 fails
+                // with "There is already an object named 'Users'" and every later migration is
+                // silently dropped - the app then starts against a schema the code does not match
+                // and returns 500 on every query touching the missing column.
+                // Logged as an error, and the still-pending migrations are named, because this
+                // used to be a warning that nobody saw until the UI broke.
+                Log.Error(ex, "SCHEMA: migrations could not be applied. The database may not match this build.");
+
+                try
+                {
+                    var pending = db.Database.GetPendingMigrations().ToList();
+                    if (pending.Count > 0)
+                    {
+                        Log.Error("SCHEMA: {Count} migration(s) NOT applied: {Pending}",
+                            pending.Count, string.Join(", ", pending));
+                        Log.Error("SCHEMA: if the tables already exist, baseline them by inserting the " +
+                                  "already-applied MigrationIds into __EFMigrationsHistory, then restart.");
+                    }
+                }
+                catch (Exception probeEx)
+                {
+                    Log.Error(probeEx, "SCHEMA: could not determine which migrations are pending.");
+                }
             }
             
             if (!db.Users.Any())

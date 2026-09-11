@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Lock, Eye, EyeOff, AlertTriangle, CheckCircle } from 'lucide-react';
 import senseopsLogo from '../assets/senseops-logo.png';
-import CustomModal from '../components/CustomModal';
 import './LoginPage.css';
 
 const LoginPage = () => {
@@ -12,10 +11,6 @@ const LoginPage = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
-  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
-  const [forgotUserId, setForgotUserId] = useState('');
-  const [forgotNewPassword, setForgotNewPassword] = useState('');
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -47,36 +42,6 @@ const LoginPage = () => {
 
 
 
-  const submitForgotPassword = async () => {
-    setIsForgotModalOpen(false);
-    if (!forgotUserId.trim() || !forgotNewPassword.trim()) {
-      setError('User ID and New Password are required.');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setSuccessMsg('');
-
-    try {
-      const response = await fetch('http://localhost:5191/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: forgotUserId, newPassword: forgotNewPassword })
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        setSuccessMsg(data.message);
-      } else {
-        setError(data.message || 'Failed to reset password.');
-      }
-    } catch (err) {
-      setError(err.message || 'Could not connect to the server to reset password.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="login-page-container">
@@ -171,14 +136,13 @@ const LoginPage = () => {
               )}
             </button>
             
+            {/* Password resets are an administrator action. The self-service reset that used
+                to live here posted a user id and a new password to an anonymous endpoint, so
+                anyone who could reach the API could take over any account. */}
             <div style={{ textAlign: 'center' }}>
-              <button
-                type="button"
-                onClick={() => setIsForgotModalOpen(true)}
-                style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.9rem' }}
-              >
-                Forgot Password?
-              </button>
+              <span style={{ color: '#64748b', fontSize: '0.9rem' }}>
+                Forgot your password? Contact your administrator to have it reset.
+              </span>
             </div>
           </div>
         </form>
@@ -189,40 +153,6 @@ const LoginPage = () => {
         </div>
       </div>
       
-      <CustomModal
-        isOpen={isForgotModalOpen}
-        title="Forgot Password"
-        message="Please enter your User ID and your new password:"
-        type="confirm"
-        confirmText="Reset Password"
-        onConfirm={submitForgotPassword}
-        onCancel={() => setIsForgotModalOpen(false)}
-      >
-        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <input
-            type="text"
-            value={forgotUserId}
-            onChange={(e) => setForgotUserId(e.target.value)}
-            placeholder="User ID"
-            style={{
-              width: '100%', padding: '12px 16px', borderRadius: '8px',
-              border: '1px solid rgba(59, 130, 246, 0.4)', backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              color: 'white', fontSize: '16px', outline: 'none'
-            }}
-          />
-          <input
-            type="password"
-            value={forgotNewPassword}
-            onChange={(e) => setForgotNewPassword(e.target.value)}
-            placeholder="New Password"
-            style={{
-              width: '100%', padding: '12px 16px', borderRadius: '8px',
-              border: '1px solid rgba(59, 130, 246, 0.4)', backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              color: 'white', fontSize: '16px', outline: 'none'
-            }}
-          />
-        </div>
-      </CustomModal>
     </div>
   );
 };

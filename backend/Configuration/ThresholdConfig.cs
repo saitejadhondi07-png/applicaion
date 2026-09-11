@@ -2,10 +2,11 @@ namespace Endurance.API.Configuration
 {
     public class ThresholdConfig
     {
-        public int IdleStepId { get; set; } = 1;
-        public int PulseDchStepId { get; set; } = 2;
-        public int PulseChStepId { get; set; } = 4;
-        public int ShortCdcStepId { get; set; } = 8;
+        // NOTE: there are deliberately no Step ID settings here. ReportCalculator selects rows
+        // by the Step State text in the export ("REST"/"IDLE", "CC DISCHARGE", "CC CHARGE",
+        // "BMS FOLLOW"), not by Step ID. Four IdleStepId/PulseDchStepId/PulseChStepId/
+        // ShortCdcStepId keys used to sit here and were read by nothing, so tuning them
+        // appeared to work and changed no behaviour.
 
         public int DchDeltaVHold { get; set; } = 11;
         public int ChDeltaVHold { get; set; } = 9;

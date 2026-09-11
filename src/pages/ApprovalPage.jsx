@@ -73,7 +73,7 @@ export default function ApprovalPage() {
                 {/* Card Header */}
                 <div className="approval-card-header">
                   <div className="approval-card-info">
-                    <span className="approval-card-id">{report.id}</span>
+                    <span className="approval-card-id">{report.testReportId || report.id}</span>
                     <span className="approval-card-detail">
                       👤 Test Eng: {report.testEngineer}
                     </span>
@@ -136,10 +136,14 @@ export default function ApprovalPage() {
                               <th>Idle DeltaT (°C)</th>
                               <th>DCH DeltaV (mV)</th>
                               <th>CH DeltaV (mV)</th>
+                              <th>Short CDC CH (mV)</th>
+                              <th>Short CDC DCH (mV)</th>
                               <th>SOC (%)</th>
+                              <th>SOC Result</th>
                               <th>Voltage (V)</th>
                               <th>BMS Error</th>
                               <th>Pulse Result</th>
+                              <th>CDC Result</th>
                               <th>Overall Result</th>
                             </tr>
                           </thead>
@@ -151,7 +155,14 @@ export default function ApprovalPage() {
                                 <td>{row.idleDeltaT}</td>
                                 <td>{row.dchDeltaV}</td>
                                 <td>{row.chDeltaV}</td>
+                                <td>{row.shortChDeltaV}</td>
+                                <td>{row.shortDchDeltaV}</td>
                                 <td>{row.soc}%</td>
+                                <td>
+                                  <span className={`res-badge ${(row.socResult || 'Pass').toLowerCase()}`}>
+                                    {row.socResult || 'Pass'}
+                                  </span>
+                                </td>
                                 <td>{row.voltage}V</td>
                                 <td>
                                   <span className={`bms-badge ${row.bmsError !== 'NO' ? 'err' : ''}`}>
@@ -161,6 +172,11 @@ export default function ApprovalPage() {
                                 <td>
                                   <span className={`res-badge ${(row.pulseResult || 'Pass').toLowerCase()}`}>
                                     {row.pulseResult || 'Pass'}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className={`res-badge ${(row.cdcResult || 'Pass').toLowerCase()}`}>
+                                    {row.cdcResult || 'Pass'}
                                   </span>
                                 </td>
                                 <td>

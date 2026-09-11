@@ -6,13 +6,14 @@ import { useReportMutations } from '../contexts/ReportMutationsContext';
 import { useReportFilters } from '../contexts/ReportFiltersContext';
 import { useAuth } from '../contexts/AuthContext';
 import { downloadReportExcel, downloadRawReportFiles } from '../utils/downloadUtils';
-import { API_BASE_URL } from '../config';
+import { MODEL_NUMBER } from '../config';
 import api from '../utils/api';
 import senseopsLogo from '../assets/senseops-logo.png';
 import './DashboardPage.css';
 import './UploadPage.css';
 import { parseFiles } from '../utils/fileParser';
 import Swal from 'sweetalert2';
+import { escapeHtml } from '../utils/html';
 
 
 /* Helper to convert raw ISO upload timestamp to relative time string */
@@ -255,9 +256,7 @@ function DashboardPage() {
           setParseProgress(progress);
         });
         
-        let validFiles = [];
         if (result.filesList && result.filesList.length > 0) {
-          validFiles = result.filesList;
           const newChips = result.filesList.map(f => ({ name: f.name, status: 'pending' }));
           setUploadedChips(prev => [...prev, ...newChips]);
           setPendingFiles(prev => [...prev, ...result.filesList]);
@@ -288,7 +287,7 @@ function DashboardPage() {
       try {
         showToast("⏳ Uploading and processing test logs...");
         const result = await addReport({
-          modelNumber: 'ENE5160-BTR-PP-CDC01-DDM2601',
+          modelNumber: MODEL_NUMBER,
           files: pendingFiles,
           testEngineer: user?.name || 'Priya Sharma',
           testEngineerId: user?.id || 'usr-002',
@@ -329,11 +328,11 @@ function DashboardPage() {
         if (err.response?.data?.failedFiles && Array.isArray(err.response.data.failedFiles)) {
           errorDetails = '<ul style="text-align: left; background: rgba(239, 68, 68, 0.1); padding: 10px; border-radius: 5px; list-style-type: none;">';
           err.response.data.failedFiles.forEach(f => {
-            errorDetails += `<li style="margin-bottom: 8px; font-size: 13px;">${f}</li>`;
+            errorDetails += `<li style="margin-bottom: 8px; font-size: 13px;">${escapeHtml(f)}</li>`;
           });
           errorDetails += '</ul>';
         } else {
-          errorDetails = `<p style="color: #ef4444">${err.response?.data?.message || err.message || 'Server error'}</p>`;
+          errorDetails = `<p style="color: #ef4444">${escapeHtml(err.response?.data?.message || err.message || 'Server error')}</p>`;
         }
 
         Swal.fire({
@@ -523,7 +522,7 @@ function DashboardPage() {
                   try {
                     await downloadRawReportFiles(activeReport);
                     showToast(`✅ Raw data downloaded for ${activeReport.id}`);
-                  } catch (err) {
+                  } catch {
                     showToast(`⚠️ Failed to download raw data`);
                   } finally {
                     setIsDownloadingRaw(false);

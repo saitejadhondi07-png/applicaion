@@ -121,4 +121,44 @@ public class SocColumnTests
         }
         finally { File.Delete(p); }
     }
+
+    // The BTS exports name the operator column "SoC_User(%)", noun first. The original
+    // patterns only matched "user soc", so real files fell through to Real SoC. On pack
+    // THA163301E58 (report RPT-20260831105107826) that read 0.000 instead of 29.63 and
+    // still printed Pass.
+    private const string RealExportHeaders =
+        "Cycle ID,Step ID,Step State,Max_Voltage_0(V),Min_Voltage_0(V),Temperature_Cell_Max(C),Temperature_Cell_Min(C),SoC_User(%),State_of_Charge(%),Battery_Voltage_0(V),Battery_Current(A),NO_ERROR";
+
+    [Fact]
+    public void SoC_User_header_from_the_real_export_beats_State_of_Charge()
+    {
+        var p = Csv(RealExportHeaders,
+            "3,1,Still,3.502,3.500,25.2,25.0,29.630,0.000,52.913,0,0",
+            "3,9,Still,3.502,3.500,25.2,25.0,29.630,0.000,52.913,0,0");
+        try
+        {
+            var r = Calc().ProcessRawCsv(p, "TFA12345678A.csv");
+            Assert.Equal(29.63, r.Soc);      // not 0.000 from State_of_Charge
+            Assert.Equal("Pass", r.SocResult);
+        }
+        finally { File.Delete(p); }
+    }
+
+    [Theory]
+    [InlineData("SoC_User(%)")]
+    [InlineData("SoC User (%)")]
+    [InlineData("User SoC")]
+    [InlineData("User_SoC(%)")]
+    public void Both_naming_orders_are_recognised_as_User_SoC(string userSocHeader)
+    {
+        var p = Csv(
+            $"Step ID,Step State,Max_Voltage_0,Min_Voltage_0,Temperature_Cell_Max,Temperature_Cell_Min,{userSocHeader},State_of_Charge(%),Battery_Voltage_0(V),Battery_Current,No_Error",
+            "1,REST,3.502,3.500,25.2,25.0,27.5,0.000,52.8,0,0",
+            "2,CC DISCHARGE,3.505,3.500,26.0,25.5,27.5,0.000,52.8,-10,0");
+        try
+        {
+            Assert.Equal(27.5, Calc().ProcessRawCsv(p, "TFA12345678A.csv").Soc);
+        }
+        finally { File.Delete(p); }
+    }
 }

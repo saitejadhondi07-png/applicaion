@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Endurance.API.Models
@@ -6,6 +6,16 @@ namespace Endurance.API.Models
     public class Report
     {
         public string Id { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The plant's controlled document number, e.g. "ENE5160-BTR-PP-CDC01-24F2601".
+        /// This is what the "Test Report ID" cell of the report prints, and what the
+        /// downloaded file is named after. It is deliberately separate from <see cref="Id"/>,
+        /// which is the internal database key and raw-file storage directory.
+        /// Null on reports created before this field existed; callers fall back to Id.
+        /// </summary>
+        public string? TestReportId { get; set; }
+
         public string ModelNumber { get; set; } = string.Empty;
         public string TestEngineer { get; set; } = string.Empty;
         public string TestEngineerId { get; set; } = string.Empty;
@@ -31,6 +41,14 @@ public string PassFailStatus { get; set; } = "pending"; // pass, fail, pending
     public class PackRecord
     {
         public string BatteryPackId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The uploaded file this record was read from. Files are parsed in parallel into a
+        /// ConcurrentBag, so arrival order is not reproducible; the per-pack merge orders by
+        /// this instead. Also names the files when two of them claim the same pack.
+        /// Empty on reports generated before this field existed.
+        /// </summary>
+        public string SourceFile { get; set; } = string.Empty;
         public int IdleDeltaV { get; set; }
         public double IdleDeltaT { get; set; }
         public int DchDeltaV { get; set; }

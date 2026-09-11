@@ -50,7 +50,14 @@ const accessDeniedStyles = {
 };
 
 export default function ProtectedRoute({ allowedRoles = [] }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading } = useAuth();
+
+  // AuthProvider probes /auth/me on mount, and on a page refresh that request is still in
+  // flight on the first render. Redirecting during it signed the user out of a valid session
+  // every time they refreshed or deep-linked, before the refresh cookie had a chance to work.
+  if (loading) {
+    return <div style={accessDeniedStyles.container}>Loading…</div>;
+  }
 
   // Not logged in → redirect to login
   if (!isAuthenticated) {

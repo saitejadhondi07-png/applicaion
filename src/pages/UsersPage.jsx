@@ -18,7 +18,12 @@ export default function UsersPage() {
   const [role, setRole] = useState('test_engineer');
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '', onConfirm: null, danger: false });
+  const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '', onConfirm: null, danger: false, confirmText: 'Yes, Delete' });
+
+  // Password reset. This is the only reset path in the system: the self-service one that used
+  // to live on the login page reset any account anonymously, so it was removed.
+  const [resetTarget, setResetTarget] = useState(null);
+  const [resetPassword, setResetPassword] = useState('');
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -118,6 +123,34 @@ export default function UsersPage() {
         }
       }
     });
+  };
+
+  const submitPasswordReset = async () => {
+    if (!resetTarget) return;
+
+    if (resetPassword.length < 12) {
+      setError('New password must be at least 12 characters.');
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+    const target = resetTarget;
+    setResetTarget(null);
+
+    try {
+      await api.put(`/users/${target.id}/password`, { newPassword: resetPassword });
+      setSuccess(`Password reset for "${target.name}". They must sign in again.`);
+    } catch (err) {
+      if (err.response?.status === 401) {
+        logout();
+        setError('Session expired. Please log in again.');
+      } else {
+        setError(err.response?.data?.message || err.message || 'Failed to reset password');
+      }
+    } finally {
+      setResetPassword('');
+    }
   };
 
   const formatRoleLabel = (roleStr) => {
@@ -267,14 +300,23 @@ export default function UsersPage() {
                     {isMe ? (
                       <span className="user-me-badge" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Current Session</span>
                     ) : (
-                      <button
-                        className="delete-user-btn"
-                        style={{ flex: 1 }}
-                        onClick={() => handleDeleteUser(u.id, u.name)}
-                        disabled={u.id === '102024'}
-                      >
-                        Delete Member
-                      </button>
+                      <>
+                        <button
+                          className="delete-user-btn"
+                          style={{ flex: 1 }}
+                          onClick={() => handleDeleteUser(u.id, u.name)}
+                          disabled={u.id === '102024'}
+                        >
+                          Delete Member
+                        </button>
+                        <button
+                          className="delete-user-btn"
+                          style={{ flex: 1, background: 'none', border: '1px solid #3b82f6', color: '#3b82f6' }}
+                          onClick={() => { setResetPassword(''); setResetTarget(u); }}
+                        >
+                          Reset Password
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -295,6 +337,32 @@ export default function UsersPage() {
         onConfirm={modalConfig.onConfirm}
         onCancel={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
       />
+
+      <CustomModal
+        isOpen={resetTarget !== null}
+        title="Reset Password"
+        message={`Set a new password for "${resetTarget?.name ?? ''}". Any session they have open will be signed out.`}
+        type="confirm"
+        confirmText="Reset Password"
+        cancelText="Cancel"
+        onConfirm={submitPasswordReset}
+        onCancel={() => { setResetTarget(null); setResetPassword(''); }}
+      >
+        <div style={{ marginTop: '16px' }}>
+          <input
+            type="password"
+            value={resetPassword}
+            onChange={(e) => setResetPassword(e.target.value)}
+            placeholder="New password (min 12 characters)"
+            autoComplete="new-password"
+            style={{
+              width: '100%', padding: '12px 16px', borderRadius: '8px',
+              border: '1px solid rgba(59, 130, 246, 0.4)', backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              color: 'white', fontSize: '16px', outline: 'none'
+            }}
+          />
+        </div>
+      </CustomModal>
     </div>
   );
 }

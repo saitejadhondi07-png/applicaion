@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
@@ -22,13 +22,31 @@ namespace Endurance.API.Services
         private readonly ILogger<ReportService> _logger;
         private readonly ReportCalculator _calculator;
         private readonly ThresholdConfig _thresholds;
+        private readonly string _rawFilesRoot;
 
-        public ReportService(AppDbContext context, ILogger<ReportService> logger, ReportCalculator calculator, IOptions<ThresholdConfig> thresholds)
+        public ReportService(AppDbContext context, ILogger<ReportService> logger, ReportCalculator calculator,
+                             IOptions<ThresholdConfig> thresholds, IConfiguration configuration, IWebHostEnvironment environment)
         {
             _context = context;
             _logger = logger;
             _calculator = calculator;
             _thresholds = thresholds.Value;
+
+            // Where uploaded raw exports are kept - beside the application rather than inside
+            // it, so a redeploy cannot wipe them.
+            //
+            // This used to be written as four levels above AppContext.BaseDirectory. That lands
+            // on the repository root from bin/Debug/net10.0 - correct by accident in a dev
+            // build - but from a published site it climbs out of the site entirely (C:\ for a
+            // site under C:\inetpub\wwwrootpi). Anchored on the content root instead, and
+            // overridable so an existing deployment can keep pointing at its current folder.
+            var configuredRoot = configuration["Storage:RawFilesPath"];
+            _rawFilesRoot = !string.IsNullOrWhiteSpace(configuredRoot)
+                ? Path.GetFullPath(configuredRoot)
+                : Path.GetFullPath(Path.Combine(environment.ContentRootPath, "..", "PersistentStorage", "RawFiles"));
+
+            _logger.LogInformation("Raw uploaded files are stored under {RawFilesRoot}", _rawFilesRoot);
+
             
             _templatePath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "template.xlsx");
             if (!File.Exists(_templatePath))
@@ -54,11 +72,14 @@ namespace Endurance.API.Services
                 idExists = await _context.Reports.AnyAsync(r => r.Id == reportId);
             } while (idExists);
 
+            var uploadedAtUtc = DateTime.UtcNow;
+            string testReportId = await NextTestReportIdAsync(uploadedAtUtc);
+
             var records = new List<PackRecord>();
             var fileNames = new List<string>();
             var failedFilesList = new List<string>();
 
-            string reportStorageDir = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "PersistentStorage", "RawFiles", reportId);
+            string reportStorageDir = Path.Combine(_rawFilesRoot, reportId);
             Directory.CreateDirectory(reportStorageDir);
 
             var savedFiles = new List<(string diskPath, string sanitizedFileName, string ext)>();
@@ -157,31 +178,22 @@ namespace Endurance.API.Services
                 }
             });
 
-            var mergedRecords = recordsBag
-                .GroupBy(r => r.BatteryPackId)
-                .Select(g => {
-                    var merged = new PackRecord { BatteryPackId = g.Key };
-                    merged.IdleDeltaV = g.Max(x => x.IdleDeltaV);
-                    merged.IdleDeltaT = g.Max(x => x.IdleDeltaT);
-                    merged.DchDeltaV = g.Max(x => x.DchDeltaV);
-                    merged.DchDeltaT = g.Max(x => x.DchDeltaT);
-                    merged.ChDeltaV = g.Max(x => x.ChDeltaV);
-                    merged.ChDeltaT = g.Max(x => x.ChDeltaT);
-                    merged.ShortChDeltaV = g.Max(x => x.ShortChDeltaV);
-                    merged.ShortDchDeltaV = g.Max(x => x.ShortDchDeltaV);
-                    merged.Soc = g.Last().Soc;
-                    merged.Voltage = g.Last().Voltage;
-                    
-                    merged.BmsError = g.Any(x => x.BmsError == "YES") ? "YES" : 
-                                     g.Any(x => x.BmsError == "CAN STUCK") ? "CAN STUCK" : "NO";
-                                     
-                    merged.PulseResult = g.Any(x => x.PulseResult == "Hold") ? "Hold" : "Pass";
-                    merged.OverallResult = g.Any(x => x.OverallResult == "Fail") ? "Fail" : "Pass";
-                    
-                    return merged;
-                })
-                .OrderBy(r => r.BatteryPackId)
-                .ToList();
+            // Interlock: one file, one pack. Two files claiming the same pack ID is legal - a
+            // pack can be exported once per test stage - but it is also what a mis-named export
+            // looks like, and the merge below folds them into a single row. Name them in the log
+            // so a mismatched Summary Report can be traced back to the files that caused it.
+            foreach (var clash in recordsBag
+                         .GroupBy(r => r.BatteryPackId)
+                         .Where(g => g.Select(x => x.SourceFile).Distinct().Count() > 1))
+            {
+                _logger.LogWarning(
+                    "[UPLOAD] Pack {PackId} was read from {Count} files and will be merged into one row: {Files}",
+                    clash.Key,
+                    clash.Select(x => x.SourceFile).Distinct().Count(),
+                    string.Join(" | ", clash.Select(x => x.SourceFile).Distinct().OrderBy(f => f, StringComparer.Ordinal)));
+            }
+
+            var mergedRecords = MergeByPack(recordsBag);
 
             records.AddRange(mergedRecords);
             fileNames.AddRange(fileNamesBag.OrderBy(f => f));
@@ -207,12 +219,13 @@ namespace Endurance.API.Services
             var report = new Report
             {
                 Id = reportId,
+                TestReportId = testReportId,
                 ModelNumber = request.ModelNumber,
                 TestEngineer = request.TestEngineer,
                 TestEngineerId = request.TestEngineerId,
                 FileName = fileNames.Count > 1 ? $"{fileNames.Count} files (e.g. {fileNames[0]})" : (fileNames.Count > 0 ? fileNames[0] : "No files"),
                 Status = "generated",
-                UploadDate = DateTime.UtcNow,
+                UploadDate = uploadedAtUtc,
                 RawDataJson = JsonSerializer.Serialize(rawDataObj),
                 GeneratedDataJson = JsonSerializer.Serialize(genData),
                 PassFailStatus = passFailStatus
@@ -224,6 +237,7 @@ namespace Endurance.API.Services
             return new ReportResponseDto
             {
                 Id = report.Id,
+                TestReportId = report.TestReportId,
                 ModelNumber = report.ModelNumber,
                 TestEngineer = report.TestEngineer,
                 TestEngineerId = report.TestEngineerId,
@@ -262,6 +276,7 @@ namespace Endurance.API.Services
                 .Select(r => new ReportResponseDto
                 {
                     Id = r.Id,
+                    TestReportId = r.TestReportId,
                     ModelNumber = r.ModelNumber,
                     TestEngineer = r.TestEngineer,
                     TestEngineerId = r.TestEngineerId,
@@ -333,7 +348,7 @@ namespace Endurance.API.Services
 
             try
             {
-                string reportStorageDir = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "PersistentStorage", "RawFiles", id);
+                string reportStorageDir = Path.Combine(_rawFilesRoot, id);
                 if (Directory.Exists(reportStorageDir)) Directory.Delete(reportStorageDir, true);
             }
             catch { }
@@ -456,11 +471,11 @@ namespace Endurance.API.Services
                     }
                 }
                 zipStream.Position = 0;
-                string dateStr1 = report.UploadDate.ToString("yyyyMMdd");
-                return (zipStream.ToArray(), $"{report.ModelNumber}_RawData_{dateStr1}.zip", "application/zip");
+                string stem1 = TestReportNumber.FileStem(report.TestReportId ?? report.Id, report.UploadDate.ToLocalTime());
+                return (zipStream.ToArray(), $"{stem1}_RawData.zip", "application/zip");
             }
 
-            string storageDir = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "PersistentStorage", "RawFiles", id);
+            string storageDir = Path.Combine(_rawFilesRoot, id);
             if (Directory.Exists(storageDir))
             {
                 var diskFiles = Directory.GetFiles(storageDir);
@@ -483,8 +498,8 @@ namespace Endurance.API.Services
                         }
                     }
                     zipStream.Position = 0;
-                    string dateStr2 = report.UploadDate.ToString("yyyyMMdd");
-                    return (zipStream.ToArray(), $"{report.ModelNumber}_RawData_{dateStr2}.zip", "application/zip");
+                    string stem2 = TestReportNumber.FileStem(report.TestReportId ?? report.Id, report.UploadDate.ToLocalTime());
+                    return (zipStream.ToArray(), $"{stem2}_RawData.zip", "application/zip");
                 }
             }
 
@@ -496,7 +511,7 @@ namespace Endurance.API.Services
             }
 
             byte[] generatedRawBytes = ExcelGenerator.GenerateReport(report, records, _templatePath, _thresholds);
-            return (generatedRawBytes, $"{report.ModelNumber}_RawData_{report.Id}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            return (generatedRawBytes, $"{report.TestReportId ?? report.Id}_RawData.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         }
 
         public async Task<bool> ClearAllReportsAsync()
@@ -507,13 +522,103 @@ namespace Endurance.API.Services
 
             try
             {
-                string rawDir = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "PersistentStorage", "RawFiles");
-                if (Directory.Exists(rawDir)) Directory.Delete(rawDir, true);
+                if (Directory.Exists(_rawFilesRoot)) Directory.Delete(_rawFilesRoot, true);
             }
             catch { }
 
             return true;
         }
+
+        /// <summary>
+        /// Allocates the next plant document number for the day <paramref name="uploadedAtUtc"/>
+        /// falls on in local time. Local, not UTC: the report prints its Report Date in local
+        /// time and the number has to agree with the date printed next to it.
+        /// </summary>
+        private async Task<string> NextTestReportIdAsync(DateTime uploadedAtUtc)
+        {
+            var localDate = uploadedAtUtc.ToLocalTime().Date;
+
+            // Bound the query by the UTC instants that correspond to the local day, so SQL Server
+            // can use the UploadDate index instead of converting every row.
+            var fromUtc = localDate.ToUniversalTime();
+            var toUtc = localDate.AddDays(1).ToUniversalTime();
+
+            int issuedToday = await _context.Reports
+                .CountAsync(r => r.UploadDate >= fromUtc && r.UploadDate < toUtc);
+
+            var candidate = TestReportNumber.Build(localDate, issuedToday + 1);
+
+            // ponytail: sequence derived from a count, so two uploads racing inside the same
+            // second can propose the same number. Walk forward until it is free rather than
+            // taking a lock - contention here is one plant, a handful of reports a day.
+            int attempt = issuedToday + 1;
+            while (await _context.Reports.AnyAsync(r => r.TestReportId == candidate))
+            {
+                attempt++;
+                candidate = TestReportNumber.Build(localDate, attempt);
+            }
+
+            return candidate;
+        }
+
+        /// <summary>
+        /// Collapses the per-file records into one record per battery pack. A pack can appear in
+        /// several uploaded files (one per test stage), so every measurement takes the worst case
+        /// and every verdict takes the worst verdict.
+        /// </summary>
+        public static List<PackRecord> MergeByPack(IEnumerable<PackRecord> records) =>
+            records
+                .GroupBy(r => r.BatteryPackId)
+                .Select(g =>
+                {
+                    // SoC and Voltage are single readings, not gaps, so there is no "worst" to
+                    // take. This used to be g.Last(), which is whatever the ConcurrentBag
+                    // happened to yield first - a pack present in two files got a coin-flip
+                    // SoC, and the number printed could contradict the merged verdict.
+                    // Sort a failing record last so the value shown always justifies the
+                    // verdict, then break ties on the filename so the pick is reproducible.
+                    var postTest = g
+                        .OrderBy(x => x.SocResult == "Fail" ? 1 : 0)
+                        .ThenBy(x => x.SourceFile, StringComparer.Ordinal)
+                        .Last();
+
+                    return new PackRecord
+                    {
+                        BatteryPackId = g.Key,
+                        SourceFile = string.Join(", ", g.Select(x => x.SourceFile).Where(f => f.Length > 0).Distinct().OrderBy(f => f, StringComparer.Ordinal)),
+                        IdleDeltaV = g.Max(x => x.IdleDeltaV),
+                        IdleDeltaT = g.Max(x => x.IdleDeltaT),
+                        DchDeltaV = g.Max(x => x.DchDeltaV),
+                        DchDeltaT = g.Max(x => x.DchDeltaT),
+                        ChDeltaV = g.Max(x => x.ChDeltaV),
+                        ChDeltaT = g.Max(x => x.ChDeltaT),
+                        ShortChDeltaV = g.Max(x => x.ShortChDeltaV),
+                        ShortDchDeltaV = g.Max(x => x.ShortDchDeltaV),
+                        Soc = postTest.Soc,
+                        Voltage = postTest.Voltage,
+
+                        BmsError = g.Any(x => x.BmsError == "YES") ? "YES"
+                                 : g.Any(x => x.BmsError == "CAN STUCK") ? "CAN STUCK"
+                                 : "NO",
+
+                        // ReportCalculator reports a stuck CAN bus on PulseResult (rewriting BmsError
+                        // to "YES" at the same time), so it has to be carried through here or a
+                        // stuck-CAN pack merges down to a plain "Pass".
+                        PulseResult = g.Any(x => x.PulseResult == "CAN STUCK") ? "CAN STUCK"
+                                    : g.Any(x => x.PulseResult == "Hold") ? "Hold"
+                                    : "Pass",
+
+                        // These two were previously never assigned, so they fell back to the "Pass"
+                        // default on PackRecord and every report showed the SoC and Short-CDC checks
+                        // as passing no matter what the calculator scored.
+                        CdcResult = g.Any(x => x.CdcResult == "Fail") ? "Fail" : "Pass",
+                        SocResult = g.Any(x => x.SocResult == "Fail") ? "Fail" : "Pass",
+
+                        OverallResult = g.Any(x => x.OverallResult == "Fail") ? "Fail" : "Pass",
+                    };
+                })
+                .OrderBy(r => r.BatteryPackId)
+                .ToList();
 
         private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase) { ".csv", ".xlsx" };
         private static readonly Dictionary<string, byte[]?> MagicBytes = new(StringComparer.OrdinalIgnoreCase)
@@ -528,7 +633,14 @@ namespace Endurance.API.Services
             var sanitized = Path.GetFileName(fileName);
             var invalidChars = Path.GetInvalidFileNameChars();
             foreach (var c in invalidChars) sanitized = sanitized.Replace(c, '_');
-            sanitized = sanitized.Replace("..", "_").Replace("/", "_").Replace("\\", "_");
+            // Only "/" and "\\" are stripped here. A ".." collapse used to sit alongside them
+            // and rewrote every double dot to "_", so an export named "...Record Layer..csv"
+            // arrived with no extension at all and was rejected as "File type '' is not
+            // allowed" - taking the whole batch down with it. It protected nothing:
+            // Path.GetFileName above has already removed any directory part, so an interior
+            // ".." cannot traverse. Only a name made entirely of dots resolves to a directory.
+            sanitized = sanitized.Replace("/", "_").Replace("\\", "_");
+            if (sanitized.Trim('.').Length == 0) sanitized = "unknown";
             if (sanitized.Length > 255)
             {
                 var ext = Path.GetExtension(sanitized);
@@ -552,6 +664,7 @@ namespace Endurance.API.Services
             var dto = new ReportDetailResponseDto
             {
                 Id = r.Id,
+                TestReportId = r.TestReportId,
                 ModelNumber = r.ModelNumber,
                 TestEngineer = r.TestEngineer,
                 TestEngineerId = r.TestEngineerId,

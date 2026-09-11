@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -22,6 +22,39 @@ namespace Endurance.API.Controllers
             _reportService = reportService;
             _logger = logger;
         }
+
+        /// <summary>
+        /// The signed-in user, read from the access token.
+        ///
+        /// Every name this controller stores on a report is taken from here and never from the
+        /// request. "Tested By", "Reviewed By" and "Approved By" are printed in the signature
+        /// block of a controlled document, and they used to be whatever strings the browser
+        /// posted - so a report could be approved under someone else's name.
+        /// </summary>
+        private (string Id, string Name, string Role) CurrentUser()
+        {
+            string id = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                     ?? User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value
+                     ?? string.Empty;
+            string name = User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Name)?.Value
+                       ?? User.Identity?.Name
+                       ?? id;
+            string role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? string.Empty;
+            return (id, name, role);
+        }
+
+        /// <summary>
+        /// Who may move a report into a given state. Segregation of duties is the point of the
+        /// upload -> review -> approve workflow, and the endpoint used to accept any status
+        /// from any role, so a test engineer could approve their own report.
+        /// </summary>
+        private static readonly Dictionary<string, string[]> StatusRoles = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["generated"] = new[] { "admin", "quality_manager", "quality_engineer", "test_engineer" },
+            ["reviewed"]  = new[] { "admin", "quality_engineer" },
+            ["rejected"]  = new[] { "admin", "quality_engineer", "quality_manager" },
+            ["approved"]  = new[] { "admin", "quality_manager" },
+        };
 
         [HttpGet]
         [Authorize(Roles = "admin,quality_manager,quality_engineer,test_engineer")]
@@ -66,11 +99,15 @@ namespace Endurance.API.Controllers
         {
             try
             {
+                // engineerId/engineerName still arrive on the form for backwards compatibility
+                // with older frontends, and are deliberately ignored: the tester recorded on the
+                // report is the signed-in user.
+                var me = CurrentUser();
                 var request = new UploadReportRequestDto
                 {
                     ModelNumber = modelNumber,
-                    TestEngineerId = engineerId,
-                    TestEngineer = engineerName,
+                    TestEngineerId = me.Id,
+                    TestEngineer = me.Name,
                     Files = files
                 };
 
@@ -98,6 +135,23 @@ namespace Endurance.API.Controllers
                 return BadRequest(new { message = "Invalid report ID" });
             }
 
+            var me = CurrentUser();
+            if (!StatusRoles.TryGetValue(update.Status ?? string.Empty, out var permitted))
+            {
+                return BadRequest(new { message = "Invalid status" });
+            }
+            if (!permitted.Contains(me.Role, StringComparer.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("User {UserId} with role {Role} tried to set report {ReportId} to {Status}",
+                    me.Id, me.Role, id, update.Status);
+                return StatusCode(403, new { message = $"Your role may not set a report to '{update.Status}'." });
+            }
+
+            // Overwrite whatever the browser claimed. The signature block is only meaningful if
+            // the name on it is the person who actually signed in.
+            update.UserId = me.Id;
+            update.UserName = me.Name;
+
             var report = await _reportService.UpdateReportStatusAsync(id, update);
             if (report == null) return NotFound(new { message = "Report not found" });
             
@@ -117,8 +171,12 @@ namespace Endurance.API.Controllers
             {
                 var bytes = await _reportService.GenerateReportAsync(id, filter);
                 var report = await _reportService.GetReportByIdAsync(id);
-                string dateStr = report?.UploadDate.ToString("yyyyMMdd") ?? DateTime.UtcNow.ToString("yyyyMMdd");
-                string outputName = $"{report?.ModelNumber ?? "Report"}_Report_{dateStr}.xlsx";
+                // Named the way the plant names them: document number, then the report date,
+                // e.g. "ENE5160-BTR-PP-CDC01-24F2601_24_Jun_2026.xlsx". Falls back to the
+                // internal id for reports created before document numbers existed.
+                var reportDate = (report?.UploadDate ?? DateTime.UtcNow).ToLocalTime();
+                string docNumber = report?.TestReportId ?? report?.Id ?? "Report";
+                string outputName = $"{Endurance.API.Services.TestReportNumber.FileStem(docNumber, reportDate)}.xlsx";
                 return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", outputName);
             }
             catch (ArgumentException ex)
