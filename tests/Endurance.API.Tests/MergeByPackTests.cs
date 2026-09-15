@@ -146,4 +146,60 @@ public class MergeByPackTests
 
         Assert.Equal("a.csv, b.csv", merged.SourceFile);
     }
+
+    private static PackRecord FromFile(string id, string file, int order)
+        => new() { BatteryPackId = id, SourceFile = file, UploadOrder = order };
+
+    /// <summary>
+    /// The plant reads the report against the list of files they selected, so row N must be
+    /// their Nth file. Sorting by pack ID instead put every pack at an unexpected row, which
+    /// reads on the floor as "this pack ID is showing another pack's data".
+    /// </summary>
+    [Fact]
+    public void Packs_are_printed_in_the_order_the_files_were_selected()
+    {
+        // Selection order deliberately disagrees with alphabetical order.
+        var selected = new[]
+        {
+            FromFile("TGA963300C23", "G1_COM1.csv", 0),
+            FromFile("TFA0633001B7", "G2_COM2.csv", 1),
+            FromFile("THA563302082", "G3_COM3.csv", 2),
+            FromFile("TFA063300207", "G4_COM4.csv", 3),
+        };
+
+        // Shuffled, the way a ConcurrentBag hands them back after a parallel parse.
+        var asParsed = new[] { selected[2], selected[0], selected[3], selected[1] };
+
+        var merged = ReportService.MergeByPack(asParsed);
+
+        Assert.Equal(
+            new[] { "TGA963300C23", "TFA0633001B7", "THA563302082", "TFA063300207" },
+            merged.Select(r => r.BatteryPackId));
+    }
+
+    [Fact]
+    public void A_pack_spanning_two_files_sits_where_it_was_first_selected()
+    {
+        var first = FromFile("THA163301E58", "stage1.csv", 1);
+        var second = FromFile("THA163301E58", "stage2.csv", 7);
+        var other = FromFile("TFA0633001B7", "other.csv", 3);
+
+        var merged = ReportService.MergeByPack(new[] { second, other, first });
+
+        Assert.Equal(new[] { "THA163301E58", "TFA0633001B7" }, merged.Select(r => r.BatteryPackId));
+        Assert.Equal(1, merged[0].UploadOrder);
+    }
+
+    /// <summary>Reports generated before UploadOrder existed carry 0 everywhere; those keep
+    /// their original pack-ID ordering rather than collapsing into bag order.</summary>
+    [Fact]
+    public void Records_with_no_upload_order_keep_the_old_pack_id_ordering()
+    {
+        var a = Rec("TGA963300C23");
+        var b = Rec("TFA0633001B7");
+
+        var merged = ReportService.MergeByPack(new[] { a, b });
+
+        Assert.Equal(new[] { "TFA0633001B7", "TGA963300C23" }, merged.Select(r => r.BatteryPackId));
+    }
 }

@@ -49,6 +49,16 @@ public string PassFailStatus { get; set; } = "pending"; // pass, fail, pending
         /// Empty on reports generated before this field existed.
         /// </summary>
         public string SourceFile { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Zero-based position of <see cref="SourceFile"/> in the operator's file selection.
+        /// The report prints packs in this order, because the plant reads it against the list
+        /// of files they picked. Files are parsed in parallel into a ConcurrentBag, so the
+        /// selection order cannot be recovered afterwards - it has to be carried.
+        /// Defaults to 0 on records written before this field existed, which leaves those
+        /// reports in their original pack-ID order.
+        /// </summary>
+        public int UploadOrder { get; set; }
         public int IdleDeltaV { get; set; }
         public double IdleDeltaT { get; set; }
         public int DchDeltaV { get; set; }

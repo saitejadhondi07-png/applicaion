@@ -82,7 +82,9 @@ namespace Endurance.API.Services
             string reportStorageDir = Path.Combine(_rawFilesRoot, reportId);
             Directory.CreateDirectory(reportStorageDir);
 
-            var savedFiles = new List<(string diskPath, string sanitizedFileName, string ext)>();
+            // The index is the file's position in request.Files, which is the order the
+            // operator selected them - multipart preserves it, and the report is printed in it.
+            var savedFiles = new List<(string diskPath, string sanitizedFileName, string ext, int order)>();
             foreach (var file in request.Files)
             {
                 var sanitizedFileName = SanitizeFileName(file.FileName);
@@ -109,7 +111,7 @@ namespace Endurance.API.Services
                             await stream.CopyToAsync(diskStream);
                         }
                     }
-                    savedFiles.Add((diskPath, sanitizedFileName, ext));
+                    savedFiles.Add((diskPath, sanitizedFileName, ext, savedFiles.Count));
                 }
                 catch (Exception exDisk)
                 {
@@ -124,7 +126,7 @@ namespace Endurance.API.Services
 
             Parallel.ForEach(savedFiles, fileInfo =>
             {
-                var (diskPath, sanitizedFileName, ext) = fileInfo;
+                var (diskPath, sanitizedFileName, ext, order) = fileInfo;
                 byte[] magicBytes = new byte[8];
                 using (var fs = new FileStream(diskPath, FileMode.Open, FileAccess.Read))
                 {
@@ -148,6 +150,7 @@ namespace Endurance.API.Services
 
                 try
                 {
+                    var parsed = new List<PackRecord>();
                     if (ext == ".xlsx")
                     {
                         byte[] fileBytes = File.ReadAllBytes(diskPath);
@@ -155,18 +158,25 @@ namespace Endurance.API.Services
                         var excelRecs = _calculator.ProcessExcel(msCopy1, sanitizedFileName);
                         if (excelRecs.Count > 0)
                         {
-                            foreach (var rec in excelRecs) recordsBag.Add(rec);
+                            parsed.AddRange(excelRecs);
                         }
                         else
                         {
                             using var msCopy2 = new MemoryStream(fileBytes);
-                            var rawRec = _calculator.ProcessRawExcel(msCopy2, sanitizedFileName);
-                            recordsBag.Add(rawRec);
+                            parsed.Add(_calculator.ProcessRawExcel(msCopy2, sanitizedFileName));
                         }
                     }
                     else
                     {
-                        var rec = _calculator.ProcessRawCsv(diskPath, sanitizedFileName);
+                        parsed.Add(_calculator.ProcessRawCsv(diskPath, sanitizedFileName));
+                    }
+
+                    // Stamp before publishing to the bag: once a record is in there its
+                    // position is gone, and this is the only place that still knows the file's
+                    // place in the selection.
+                    foreach (var rec in parsed)
+                    {
+                        rec.UploadOrder = order;
                         recordsBag.Add(rec);
                     }
                     fileNamesBag.Add(sanitizedFileName);
@@ -585,6 +595,9 @@ namespace Endurance.API.Services
                     return new PackRecord
                     {
                         BatteryPackId = g.Key,
+                        // First time this pack appeared in the selection wins, so a pack that
+                        // shows up in two files sits where the operator first listed it.
+                        UploadOrder = g.Min(x => x.UploadOrder),
                         SourceFile = string.Join(", ", g.Select(x => x.SourceFile).Where(f => f.Length > 0).Distinct().OrderBy(f => f, StringComparer.Ordinal)),
                         IdleDeltaV = g.Max(x => x.IdleDeltaV),
                         IdleDeltaT = g.Max(x => x.IdleDeltaT),
@@ -617,7 +630,14 @@ namespace Endurance.API.Services
                         OverallResult = g.Any(x => x.OverallResult == "Fail") ? "Fail" : "Pass",
                     };
                 })
-                .OrderBy(r => r.BatteryPackId)
+                // Printed in the order the operator selected the files, NOT alphabetically by
+                // pack ID. The plant reads the report against the list of files they picked,
+                // so an alphabetical sort put every pack at a row they did not expect - which
+                // reads as "this pack ID has a different pack's data" even though each row is
+                // internally correct. ThenBy keeps the old behaviour for records written
+                // before UploadOrder existed, where every value is 0.
+                .OrderBy(r => r.UploadOrder)
+                .ThenBy(r => r.BatteryPackId, StringComparer.Ordinal)
                 .ToList();
 
         private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase) { ".csv", ".xlsx" };
