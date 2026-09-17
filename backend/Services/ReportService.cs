@@ -153,17 +153,18 @@ namespace Endurance.API.Services
                     var parsed = new List<PackRecord>();
                     if (ext == ".xlsx")
                     {
-                        byte[] fileBytes = File.ReadAllBytes(diskPath);
-                        using var msCopy1 = new MemoryStream(fileBytes);
-                        var excelRecs = _calculator.ProcessExcel(msCopy1, sanitizedFileName);
-                        if (excelRecs.Count > 0)
+                        // EPPlus holds an entire worksheet in memory - a 10 MB export expands to
+                        // roughly 350 MB - so the number of workbooks alive at once, not the file
+                        // size, is what decides peak memory. Unbounded, a folder of 61 exports
+                        // ran the process past 5 GB. CSV parsing is cheap and stays unthrottled.
+                        ExcelSlots.Wait();
+                        try
                         {
-                            parsed.AddRange(excelRecs);
+                            parsed.AddRange(_calculator.ProcessExcelFile(diskPath, sanitizedFileName));
                         }
-                        else
+                        finally
                         {
-                            using var msCopy2 = new MemoryStream(fileBytes);
-                            parsed.Add(_calculator.ProcessRawExcel(msCopy2, sanitizedFileName));
+                            ExcelSlots.Release();
                         }
                     }
                     else
@@ -639,6 +640,16 @@ namespace Endurance.API.Services
                 .OrderBy(r => r.UploadOrder)
                 .ThenBy(r => r.BatteryPackId, StringComparer.Ordinal)
                 .ToList();
+
+        /// <summary>
+        /// Caps how many workbooks are parsed at once, across every in-flight upload. Static on
+        /// purpose: two operators uploading at the same time must share the budget, or the cap
+        /// buys nothing. Three is a deliberate floor-plant compromise - enough to keep the
+        /// cores busy, few enough that peak stays near a gigabyte rather than five.
+        /// ponytail: fixed cap, make it a setting if the server's memory ever changes.
+        /// </summary>
+        private static readonly SemaphoreSlim ExcelSlots =
+            new(Math.Max(1, Math.Min(Environment.ProcessorCount, 3)));
 
         private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase) { ".csv", ".xlsx" };
         private static readonly Dictionary<string, byte[]?> MagicBytes = new(StringComparer.OrdinalIgnoreCase)

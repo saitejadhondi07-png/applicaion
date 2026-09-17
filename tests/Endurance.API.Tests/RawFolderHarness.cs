@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using Endurance.API.Configuration;
 using Endurance.API.Models;
 using Endurance.API.Services;
@@ -19,6 +19,9 @@ namespace Endurance.API.Tests;
 /// </summary>
 public class RawFolderHarness
 {
+    private static readonly SemaphoreSlim ExcelSlots =
+        new(Math.Max(1, Math.Min(Environment.ProcessorCount, 3)));
+
     [Fact]
     public void Replay()
     {
@@ -50,11 +53,12 @@ public class RawFolderHarness
                     var parsed = new List<PackRecord>();
                     if (Path.GetExtension(name).ToLowerInvariant() == ".xlsx")
                     {
-                        var bytes = File.ReadAllBytes(item.path);
-                        using var s1 = new MemoryStream(bytes);
-                        var compiled = calc.ProcessExcel(s1, name);
-                        if (compiled.Count > 0) parsed.AddRange(compiled);
-                        else { using var s2 = new MemoryStream(bytes); parsed.Add(calc.ProcessRawExcel(s2, name)); }
+                        // Mirrors ReportService: one open per workbook, and the same cap on how
+                        // many are alive at once, so a measurement here means something on the
+                        // server.
+                        ExcelSlots.Wait();
+                        try { parsed.AddRange(calc.ProcessExcelFile(item.path, name)); }
+                        finally { ExcelSlots.Release(); }
                     }
                     else parsed.Add(calc.ProcessRawCsv(item.path, name));
 
@@ -76,6 +80,10 @@ public class RawFolderHarness
             {
                 baseline = signature;
                 log.Add($"run {run}: packs={merged.Count} rejected={failed.Count} (baseline)");
+
+                // Full dump, so a refactor of the parsers can be diffed value-by-value against
+                // the output they produced before it.
+                File.WriteAllLines(outPath + ".signature.txt", signature);
 
                 foreach (var f in failed.OrderBy(x => x)) log.Add($"   REJECTED {f}");
 

@@ -149,6 +149,31 @@ namespace Endurance.API.Services
         {
             ExcelPackage.License.SetNonCommercialOrganization("Endurance");
             using var package = new ExcelPackage(stream);
+            return ReadCompiledSheet(package, fileName);
+        }
+
+        /// <summary>
+        /// Reads one uploaded workbook, deciding a single time which shape it is.
+        ///
+        /// The upload path used to call ProcessExcel and then, when that found no compiled
+        /// sheet, ProcessRawExcel - constructing an ExcelPackage twice for every raw export.
+        /// Building the package IS the parse, so each file was read from end to end twice.
+        /// Taking a path rather than a Stream also lets EPPlus read from disk instead of the
+        /// caller holding the whole file in a byte[] and two MemoryStreams.
+        /// </summary>
+        public List<PackRecord> ProcessExcelFile(string filePath, string fileName)
+        {
+            ExcelPackage.License.SetNonCommercialOrganization("Endurance");
+            using var package = new ExcelPackage(new FileInfo(filePath));
+
+            var compiled = ReadCompiledSheet(package, fileName);
+            if (compiled.Count > 0) return compiled;
+
+            return new List<PackRecord> { ReadRawSheet(package, RequirePackId(fileName), fileName) };
+        }
+
+        private List<PackRecord> ReadCompiledSheet(ExcelPackage package, string fileName)
+        {
             var records = new List<PackRecord>();
 
             // Find compiled sheet
@@ -426,9 +451,18 @@ namespace Endurance.API.Services
         public PackRecord ProcessRawExcel(Stream stream, string fileName)
         {
             string packId = RequirePackId(fileName);
+            ExcelPackage.License.SetNonCommercialOrganization("Endurance");
+            using var package = new OfficeOpenXml.ExcelPackage(stream);
+            return ReadRawSheet(package, packId, fileName);
+        }
+
+        /// <summary>Reads a raw BTS export out of an already-open workbook.</summary>
+        private PackRecord ReadRawSheet(OfficeOpenXml.ExcelPackage package, string packId, string fileName)
+        {
             try
             {
-                using (var package = new OfficeOpenXml.ExcelPackage(stream))
+                // Scope retained from when this method opened its own package, so the body below
+                // keeps its original indentation and brace structure.
                 {
                     var ws = package.Workbook.Worksheets[0];
                     if (ws == null)
@@ -443,7 +477,7 @@ namespace Endurance.API.Services
                     var headers = new List<string>();
                     for (int c = 1; c <= colCount; c++)
                     {
-                        headers.Add(ws.Cells[1, c].Value?.ToString()?.Trim()?.ToLower() ?? "");
+                        headers.Add(ws.GetValue(1, c)?.ToString()?.Trim()?.ToLower() ?? "");
                     }
 
                     // Find key columns
@@ -468,20 +502,31 @@ namespace Endurance.API.Services
                         throw new InvalidOperationException("Excel file missing required 'Step ID' column");
                     }
 
-                    // Extract rows
+                    // Only these ten columns are ever scored. A raw export carries about 72, and
+                    // holding every cell of every row as a string cost roughly 400 MB for a 10 MB
+                    // workbook - parsed in parallel, that is what pushed a 61-file upload past
+                    // 5 GB. Rows are projected down to the scored columns as they are read.
+                    //
+                    // Cells come from ws.GetValue rather than the ws.Cells[r, c] indexer, which
+                    // builds an ExcelRange object for every one of the several million cells.
+                    int[] sourceColumns = { stepIdIdx, maxVoltIdx, minVoltIdx, maxTempIdx, minTempIdx,
+                                            socIdx, voltIdx, currentIdx, stateIdx, errorIdx };
                     var dataRows = new List<string[]>();
                     for (int r = 2; r <= rowCount; r++)
                     {
-                        var cols = new string[colCount];
-                        for (int c = 1; c <= colCount; c++)
-                        {
-                            cols[c - 1] = ws.Cells[r, c].Value?.ToString() ?? "";
-                        }
+                        // Step ID first: rows without a numeric one are skipped, and reading the
+                        // other nine cells for a row that is about to be discarded is wasted work.
+                        var stepCell = ws.GetValue(r, stepIdIdx + 1)?.ToString();
+                        if (string.IsNullOrEmpty(stepCell) || !int.TryParse(stepCell, out _)) continue;
 
-                        if (stepIdIdx >= 0 && cols.Length > stepIdIdx && int.TryParse(cols[stepIdIdx], out _))
+                        var cols = new string[sourceColumns.Length];
+                        for (int i = 0; i < sourceColumns.Length; i++)
                         {
-                            dataRows.Add(cols);
+                            cols[i] = sourceColumns[i] >= 0
+                                ? (ws.GetValue(r, sourceColumns[i] + 1)?.ToString() ?? "")
+                                : "";
                         }
+                        dataRows.Add(cols);
                     }
 
                     if (dataRows.Count == 0)
@@ -489,7 +534,13 @@ namespace Endurance.API.Services
                         throw new InvalidOperationException("Excel file has no valid data rows with numeric Step IDs");
                     }
 
-                    var excelRecord = ProcessRawDataRows(dataRows, packId, stepIdIdx, maxVoltIdx, minVoltIdx, maxTempIdx, minTempIdx, socIdx, voltIdx, currentIdx, stateIdx, errorIdx);
+                    // Positions within the projected row, preserving -1 for a column the sheet
+                    // does not have - ProcessRawDataRows treats -1 as "absent".
+                    int Slot(int sourceIndex, int slot) => sourceIndex >= 0 ? slot : -1;
+                    var excelRecord = ProcessRawDataRows(dataRows, packId,
+                        Slot(stepIdIdx, 0), Slot(maxVoltIdx, 1), Slot(minVoltIdx, 2), Slot(maxTempIdx, 3),
+                        Slot(minTempIdx, 4), Slot(socIdx, 5), Slot(voltIdx, 6), Slot(currentIdx, 7),
+                        Slot(stateIdx, 8), Slot(errorIdx, 9));
                     excelRecord.SourceFile = fileName;
                     return excelRecord;
                 }
