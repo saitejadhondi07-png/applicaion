@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from '../contexts/AuthContext'
 import ProtectedRoute from '../components/ProtectedRoute'
+import LoginPage from '../pages/LoginPage'
 
 vi.mock('../config', () => ({
   API_BASE_URL: 'http://localhost:5191/api',
@@ -80,5 +81,35 @@ describe('ProtectedRoute', () => {
     )
 
     await waitFor(() => expect(screen.queryByText('User Admin')).not.toBeInTheDocument())
+  })
+})
+
+// The login page is the one screen every user must get past. A stray reference to a removed
+// piece of state throws during render and the whole page goes blank - `npm run build` does not
+// catch that, and it reached the development server once already.
+describe('LoginPage', () => {
+  it('renders without throwing', () => {
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <LoginPage />
+        </AuthProvider>
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/user id/i)).toBeInTheDocument()
+  })
+
+  it('no longer offers self-service password reset', () => {
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <LoginPage />
+        </AuthProvider>
+      </MemoryRouter>
+    )
+
+    expect(screen.queryByRole('button', { name: /forgot password/i })).toBeNull()
   })
 })

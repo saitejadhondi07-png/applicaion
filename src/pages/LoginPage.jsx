@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { User, Lock, Eye, EyeOff, AlertTriangle, CheckCircle } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import senseopsLogo from '../assets/senseops-logo.png';
 import './LoginPage.css';
 
@@ -69,12 +69,7 @@ const LoginPage = () => {
             <span className="alert-text">{error}</span>
           </div>
         )}
-        {successMsg && (
-          <div className="login-error-alert" style={{ backgroundColor: '#10b98122', color: '#10b981', border: '1px solid #10b98144' }}>
-            <CheckCircle className="alert-icon" size={18} />
-            <span className="alert-text">{successMsg}</span>
-          </div>
-        )}
+
 
         <form className="login-form-main" onSubmit={handleSubmit} autoComplete="off">
           <div className="login-form-group">
