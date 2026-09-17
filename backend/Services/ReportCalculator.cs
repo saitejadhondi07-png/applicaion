@@ -114,15 +114,36 @@ namespace Endurance.API.Services
         private string RequirePackId(string fileName)
         {
             var packId = ExtractBatteryPackId(fileName);
-            if (packId.Length == 0)
+            if (packId.Length > 0) return packId;
+
+            // Name the near miss. A pack ID is 12 characters; an operator who types one extra
+            // character produces something like "THA163301F7F2", which the old unanchored match
+            // silently truncated to "THA163301F7F" - a pack that was never tested, printed onto
+            // a signed report as though it had been. Rejecting the file is right, but "no pack
+            // ID in the filename" is a baffling thing to read about a name that plainly
+            // contains one, so say which token is wrong and how to fix it.
+            var near = NearMissPackId.Match(fileName);
+            if (near.Success)
             {
+                var token = near.Groups[1].Value.ToUpperInvariant();
                 throw new InvalidOperationException(
-                    "No Battery Pack ID in the filename. Expected a 12-character ID such as " +
-                    "TFA3633001BA between separators. Rename the export to include the pack ID " +
-                    "and upload it again.");
+                    $"'{token}' is {token.Length} characters; a Battery Pack ID is 12 " +
+                    "(T followed by 11). Correct the filename and upload it again.");
             }
-            return packId;
+
+            throw new InvalidOperationException(
+                "No Battery Pack ID in the filename. Expected a 12-character ID such as " +
+                "TFA3633001BA between separators. Rename the export to include the pack ID " +
+                "and upload it again.");
         }
+
+        /// <summary>
+        /// A standalone token that looks like a pack ID but is the wrong length. Bounded on
+        /// both sides so it only catches a plausible near miss - a mistyped ID - and not any
+        /// long word in the filename that happens to start with T.
+        /// </summary>
+        private static readonly Regex NearMissPackId =
+            new(@"(?<![A-Z0-9])(T[A-Z0-9]{9,15})(?![A-Z0-9])", RegexOptions.IgnoreCase);
 
         public List<PackRecord> ProcessExcel(Stream stream, string fileName)
         {
