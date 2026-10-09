@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
@@ -13,7 +13,7 @@ namespace Endurance.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "admin")]
+    [Authorize]
     public class UsersController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -43,6 +43,7 @@ namespace Endurance.API.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "admin")]
         public async Task<ActionResult<UserResponseDto>> CreateUser([FromBody] CreateUserRequestDto request)
         {
             // Check if user ID already exists
@@ -95,6 +96,7 @@ namespace Endurance.API.Controllers
         /// endpoint, which let anyone reset any account including admin.
         /// </summary>
         [HttpPut("{id}/password")]
+        [Authorize(Roles = "admin")]
         public async Task<IActionResult> ResetPassword(string id, [FromBody] ResetPasswordRequestDto request)
         {
             if (string.IsNullOrWhiteSpace(id) || id.Contains("..") || id.Contains("/") || id.Contains("\\"))
@@ -127,6 +129,7 @@ namespace Endurance.API.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "admin")]
         public async Task<IActionResult> DeleteUser(string id)
         {
             // SECURITY: Validate id parameter

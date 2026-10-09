@@ -1,4 +1,4 @@
-﻿namespace Endurance.API.Models
+namespace Endurance.API.Models
 {
     public class LoginRequest
     {
@@ -16,6 +16,16 @@
         public string Password { get; set; } = string.Empty;
     }
 
+    public class ForgotPasswordRequestDto
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string UserId { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.MinLength(6, ErrorMessage = "Password must be at least 6 characters long.")]
+        public string NewPassword { get; set; } = string.Empty;
+    }
+
     public class AuthResponse
     {
         public string Id { get; set; } = string.Empty;
@@ -24,6 +34,7 @@
         public string Role { get; set; } = string.Empty;
         public string Avatar { get; set; } = string.Empty;
         public string AccessToken { get; set; } = string.Empty;
+        public string RefreshToken { get; set; } = string.Empty;
     }
 
     public class RefreshToken

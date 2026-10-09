@@ -12,6 +12,8 @@ const CustomModal = ({
   cancelText = 'Cancel',
   placeholder = 'Enter value...',
   danger = false,
+  maxWidth = '450px',
+  lightMode = false,
   children
 }) => {
   const [inputValue, setInputValue] = useState('');
@@ -50,27 +52,29 @@ const CustomModal = ({
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: 'linear-gradient(145deg, #1e293b, #0f172a)',
-          border: `1px solid ${accentColor}44`,
+          background: lightMode ? '#ffffff' : 'var(--bg-secondary, #ffffff)',
+          border: lightMode ? '1px solid #e2e8f0' : `1px solid var(--border-color, #e2e8f0)`,
           borderRadius: '16px',
-          padding: '32px',
+          padding: '24px',
           width: '90%',
-          maxWidth: '450px',
-          boxShadow: `0 25px 50px -12px ${accentColor}33`,
-          color: 'white',
+          maxWidth: maxWidth,
+          boxShadow: `0 20px 40px -12px ${accentColor}33`,
+          color: lightMode ? '#0f172a' : 'var(--text-primary, #0f172a)',
           textAlign: 'center',
           display: 'flex',
           flexDirection: 'column',
-          gap: '24px'
+          gap: '20px'
         }}
       >
-        <h2 style={{ color: 'white', margin: 0, fontSize: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+        <h2 style={{ color: lightMode ? '#0f172a' : 'var(--text-primary, #0f172a)', margin: 0, fontSize: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
           {danger ? '⚠️ ' : '💬 '}{title}
         </h2>
 
-        <p style={{ color: '#cbd5e1', fontSize: '16px', margin: 0, lineHeight: '1.5' }}>
-          {message}
-        </p>
+        {message && (
+          <p style={{ color: lightMode ? '#64748b' : 'var(--text-muted, #64748b)', fontSize: '14px', margin: 0, lineHeight: '1.5' }}>
+            {message}
+          </p>
+        )}
 
         {type === 'prompt' && (
           <input
@@ -87,10 +91,10 @@ const CustomModal = ({
               width: '100%',
               padding: '12px 16px',
               borderRadius: '8px',
-              border: `1px solid ${accentColor}66`,
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              color: 'white',
-              fontSize: '16px',
+              border: `1px solid var(--border-color)`,
+              backgroundColor: 'var(--bg-primary)',
+              color: 'var(--text-primary)',
+              fontSize: '15px',
               outline: 'none',
               boxSizing: 'border-box'
             }}
@@ -99,28 +103,26 @@ const CustomModal = ({
         
         {children}
 
-        <div style={{ display: 'flex', gap: '16px', width: '100%', marginTop: '8px' }}>
+        <div style={{ display: 'flex', gap: '12px', width: '100%', marginTop: '8px' }}>
           <button
             onClick={onCancel}
             style={{
               flex: 1,
-              padding: '12px',
-              backgroundColor: 'transparent',
-              color: '#94a3b8',
-              border: '1px solid #475569',
+              padding: '10px',
+              backgroundColor: lightMode ? '#f1f5f9' : 'var(--bg-primary, #f1f5f9)',
+              color: lightMode ? '#0f172a' : 'var(--text-primary, #0f172a)',
+              border: lightMode ? '1px solid #cbd5e1' : '1px solid var(--border-color, #cbd5e1)',
               borderRadius: '8px',
-              fontSize: '15px',
+              fontSize: '14px',
               fontWeight: '600',
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}
             onMouseOver={(e) => {
-              e.target.style.backgroundColor = '#334155';
-              e.target.style.color = 'white';
+              e.target.style.backgroundColor = lightMode ? '#e2e8f0' : 'var(--border-color, #e2e8f0)';
             }}
             onMouseOut={(e) => {
-              e.target.style.backgroundColor = 'transparent';
-              e.target.style.color = '#94a3b8';
+              e.target.style.backgroundColor = lightMode ? '#f1f5f9' : 'var(--bg-primary, #f1f5f9)';
             }}
           >
             {cancelText}
@@ -130,12 +132,12 @@ const CustomModal = ({
             disabled={type === 'prompt' && !inputValue.trim()}
             style={{
               flex: 1,
-              padding: '12px',
-              backgroundColor: type === 'prompt' && !inputValue.trim() ? '#475569' : accentColor,
+              padding: '10px',
+              backgroundColor: type === 'prompt' && !inputValue.trim() ? 'var(--border-color)' : accentColor,
               color: 'white',
               border: 'none',
               borderRadius: '8px',
-              fontSize: '15px',
+              fontSize: '14px',
               fontWeight: '600',
               cursor: type === 'prompt' && !inputValue.trim() ? 'not-allowed' : 'pointer',
               transition: 'background-color 0.2s'

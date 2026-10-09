@@ -7,6 +7,7 @@ import { ReportFiltersProvider } from './contexts/ReportFiltersContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import DashboardPage from './pages/DashboardPage';
 import ReportsPage from './pages/ReportsPage';
 import UploadPage from './pages/UploadPage';
@@ -45,7 +46,7 @@ function App() {
                   </Route>
 
                   {/* Quality Engineer specific routes */}
-                  <Route element={<ProtectedRoute allowedRoles={['quality_engineer', 'admin']} />}>
+                  <Route element={<ProtectedRoute allowedRoles={['quality_engineer', 'admin', 'quality_manager']} />}>
                     <Route path="review" element={<ReviewPage />} />
                   </Route>
 
@@ -57,6 +58,7 @@ function App() {
                   {/* Admin specific routes */}
                   <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                     <Route path="users" element={<UsersPage />} />
+                    <Route path="analytics" element={<AnalyticsPage />} />
                   </Route>
 
                   {/* Catch all redirect to dashboard */}

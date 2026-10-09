@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 
 namespace Endurance.API.DTOs
@@ -30,6 +30,7 @@ namespace Endurance.API.DTOs
         public string ModelNumber { get; set; } = string.Empty;
         public string TestEngineer { get; set; } = string.Empty;
         public string TestEngineerId { get; set; } = string.Empty;
+        public string TestEngineerRole { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public DateTime UploadDate { get; set; }
         public string? ReviewedBy { get; set; }
@@ -70,11 +71,23 @@ namespace Endurance.API.DTOs
     public class ReportStatsResponseDto
     {
         public int TotalReports { get; set; }
+        public int TotalFilesUploaded { get; set; }
         public int PassCount { get; set; }
         public int FailCount { get; set; }
         public int PendingCount { get; set; }
+        public int UploadGrowthPercentage { get; set; }
+        public int YieldPercentage { get; set; }
         public List<ModelDistributionItemDto> ModelDistribution { get; set; } = new();
         public List<UserActivityItemDto> UserActivity { get; set; } = new();
+        public List<WeeklyTrendItemDto> WeeklyTrend { get; set; } = new();
+    }
+
+    public class WeeklyTrendItemDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public int Uploaded { get; set; }
+        public int Generated { get; set; }
+        public int Trend { get; set; }
     }
 
     public class ModelDistributionItemDto

@@ -1,11 +1,23 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import api, { setAccessToken } from '../utils/api';
+import api, { setTokens } from '../utils/api';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(() => {
+    const savedUser = sessionStorage.getItem('endurance_user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+  const [loading, setLoading] = useState(false); // We don't block render if we have user in sessionStorage
+
+  const handleSetUser = (newUser) => {
+    setUser(newUser);
+    if (newUser) {
+      sessionStorage.setItem('endurance_user', JSON.stringify(newUser));
+    } else {
+      sessionStorage.removeItem('endurance_user');
+    }
+  };
 
   useEffect(() => {
     const initAuth = async () => {
@@ -18,16 +30,21 @@ export function AuthProvider({ children }) {
           role: (rawUser.role || rawUser.Role || '').toLowerCase().trim(),
           avatar: rawUser.avatar || rawUser.Avatar || '',
         };
-        setUser(safeUser);
+        handleSetUser(safeUser);
       } catch {
-        setUser(null);
-        setAccessToken(null);
+        handleSetUser(null);
+        setTokens(null);
       } finally {
         setLoading(false);
       }
     };
 
-    initAuth();
+    if (sessionStorage.getItem('accessToken')) {
+       initAuth();
+    } else {
+       setLoading(false);
+       handleSetUser(null);
+    }
   }, []);
 
   const login = useCallback(async (userId, password) => {
@@ -41,9 +58,9 @@ export function AuthProvider({ children }) {
         avatar: rawUser.avatar || rawUser.Avatar || '',
       };
       if (rawUser.accessToken) {
-        setAccessToken(rawUser.accessToken);
+        setTokens(rawUser.accessToken, rawUser.refreshToken);
       }
-      setUser(safeUser);
+      handleSetUser(safeUser);
       return safeUser;
     } catch (err) {
       throw new Error(err.response?.data?.message || 'Invalid User ID or password');
@@ -56,8 +73,8 @@ export function AuthProvider({ children }) {
     } catch (err) {
       console.error('Logout error:', err);
     } finally {
-      setAccessToken(null);
-      setUser(null);
+      setTokens(null);
+      handleSetUser(null);
     }
   }, []);
 

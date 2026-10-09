@@ -282,7 +282,13 @@ export default function UsersPage() {
             return (
               <div className="user-profile-card glass-card" key={u.id}>
                 <div className="user-card-top">
-                  <div className="user-avatar-large">{u.avatar || 'U'}</div>
+                  <div className="user-avatar-large">
+                    {u.avatar && u.avatar.startsWith('http') && !u.avatar.includes('ui-avatars.com') ? (
+                      <img src={u.avatar} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                    ) : (
+                      u.name ? u.name.charAt(0).toUpperCase() : 'U'
+                    )}
+                  </div>
                   <span className={`user-role-badge role-${u.role}`}>
                     {formatRoleLabel(u.role)}
                   </span>

@@ -1,7 +1,6 @@
 .login-page-container {
-  position: relative;
-  width: 100vw;
-  height: 100vh;
+  position: fixed;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -58,12 +57,12 @@
 .login-card-container {
   width: 440px;
   max-width: 90%;
-  max-height: calc(100vh - 80px);
+  max-height: calc(100vh - 40px);
   overflow: hidden;
   background: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 16px;
-  padding: 40px;
+  padding: 24px 32px;
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.05), 0 5px 15px rgba(0, 0, 0, 0.02);
   z-index: 10;
   position: relative;
@@ -83,6 +82,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -95,7 +95,7 @@
   align-items: center;
   justify-content: center;
   gap: 12px;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .login-brand-logos-container {
@@ -224,9 +224,21 @@
 }
 
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  20%, 60% { transform: translateX(-4px); }
-  40%, 80% { transform: translateX(4px); }
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20%,
+  60% {
+    transform: translateX(-4px);
+  }
+
+  40%,
+  80% {
+    transform: translateX(4px);
+  }
 }
 
 /* Form Styling */
@@ -363,7 +375,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Partner Footer */
@@ -408,8 +422,16 @@
     padding: 30px 24px;
     border-radius: 12px;
   }
-  
+
   .demo-users-grid {
     grid-template-columns: 1fr;
   }
+}
+
+
+
+.swal2-confirm-small {
+  font-size: 0.85rem !important;
+  padding: 8px 24px !important;
+  border-radius: 6px !important;
 }

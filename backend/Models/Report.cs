@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Endurance.API.Models
@@ -79,6 +79,7 @@ public string PassFailStatus { get; set; } = "pending"; // pass, fail, pending
     public class ReportStats
     {
         public int TotalReports { get; set; }
+        public int TotalFilesUploaded { get; set; }
         public int PassCount { get; set; }
         public int FailCount { get; set; }
         public int PendingCount { get; set; }

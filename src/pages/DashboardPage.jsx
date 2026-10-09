@@ -54,7 +54,6 @@ function DashboardPage() {
   const { addReport, updateReportStatus } = useReportMutations();
   const { getStats: getStatsFromFilters } = useReportFilters();
   const { user } = useAuth();
-  const stats = getStatsFromFilters();
   const fileInputRef = useRef(null);
   
   // Frontend error states
@@ -84,8 +83,21 @@ function DashboardPage() {
   const [pageSize, setPageSize] = useState(10);
   const [resultFilter, setResultFilter] = useState('Combination');
 
+  // Global Stats State
+  const [globalStats, setGlobalStats] = useState({ totalReports: 0, totalFilesUploaded: 0 });
 
-  
+  const fetchGlobalStats = async () => {
+    try {
+      const res = await api.get('/reports/stats');
+      setGlobalStats(res.data);
+    } catch (err) {
+      console.error('Failed to fetch global stats:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchGlobalStats();
+  }, []);
   
   // Backend progress effect
   useEffect(() => {
@@ -144,9 +156,16 @@ function DashboardPage() {
     return [];
   }, [activeReport, detailedReport]);
 
-  // Replace global stats with stats calculated only from the current active report.
   const localStats = useMemo(() => {
-    if (!activeReport || !baseRecords.length) {
+    if (!activeReport) {
+      return { 
+        total: globalStats?.totalReports || 0, 
+        pass: globalStats?.passCount || 0, 
+        fail: globalStats?.failCount || 0, 
+        pending: globalStats?.pendingCount || 0 
+      };
+    }
+    if (!baseRecords.length) {
       return { total: 0, pass: 0, fail: 0, pending: 0 };
     }
     const total = baseRecords.length;
@@ -160,7 +179,7 @@ function DashboardPage() {
     });
     const pending = activeReport.failedFiles?.length || 0;
     return { total, pass, fail, pending };
-  }, [baseRecords, activeReport]);
+  }, [baseRecords, activeReport, globalStats]);
 
   const currentRecords = useMemo(() => {
     if (resultFilter === 'OK') {
@@ -304,6 +323,7 @@ function DashboardPage() {
           setActiveReportId(result.id);
         }
         showToast("✅ Report generated successfully!");
+        fetchGlobalStats();
 
         if ((result && result.failedFiles && result.failedFiles.length > 0) || failedFiles.length > 0) {
           if (result && result.failedFiles && result.failedFiles.length > 0) {
@@ -400,6 +420,8 @@ function DashboardPage() {
           </div>
         </div>
       </div>
+
+
 
       {/* Horizontal Stats Row */}
       <div className="horizontal-stats-row">

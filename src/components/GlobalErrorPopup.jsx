@@ -10,8 +10,8 @@ const GlobalErrorPopup = () => {
     const interceptor = api.interceptors.response.use(
       (response) => response,
       (error) => {
-        // Ignore 401s if they are being handled by the AuthContext or refresh logic
-        if (error.response?.status !== 401) {
+        // Ignore 401s (handled by AuthContext) and 403s (handled by UI components or Route protection)
+        if (error.response?.status !== 401 && error.response?.status !== 403) {
           const message = error.response?.data?.message || error.message || 'An unexpected error occurred';
           // Make sure we only show errors that aren't manually handled if we want to
           setError(message);

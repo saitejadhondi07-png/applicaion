@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
@@ -73,7 +73,6 @@ namespace Endurance.API.Services
             } while (idExists);
 
             var uploadedAtUtc = DateTime.UtcNow;
-            string testReportId = await NextTestReportIdAsync(uploadedAtUtc);
 
             var records = new List<PackRecord>();
             var fileNames = new List<string>();
@@ -227,6 +226,8 @@ namespace Endurance.API.Services
                 generatedBy = request.TestEngineer
             };
 
+            string testReportId = await NextTestReportIdAsync(uploadedAtUtc);
+
             var report = new Report
             {
                 Id = reportId,
@@ -243,6 +244,19 @@ namespace Endurance.API.Services
             };
 
             _context.Reports.Add(report);
+
+            foreach (var fileInfo in savedFiles)
+            {
+                _context.ReportFiles.Add(new ReportFile
+                {
+                    ReportId = reportId,
+                    FileName = fileInfo.sanitizedFileName,
+                    ContentType = fileInfo.ext == ".xlsx" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv",
+                    FileData = Array.Empty<byte>(),
+                    UploadDate = uploadedAtUtc
+                });
+            }
+
             await _context.SaveChangesAsync();
 
             return new ReportResponseDto
@@ -265,7 +279,7 @@ namespace Endurance.API.Services
             var pageSize = query.PageSize > 100 ? 100 : query.PageSize;
             var page = query.Page < 1 ? 1 : query.Page;
             
-            var q = _context.Reports.AsNoTracking();
+            var q = _context.Reports.Include(r => r.TestEngineerUser).AsNoTracking();
 
             if (!string.IsNullOrEmpty(query.Status) && !query.Status.Equals("All", StringComparison.OrdinalIgnoreCase))
             {
@@ -291,6 +305,7 @@ namespace Endurance.API.Services
                     ModelNumber = r.ModelNumber,
                     TestEngineer = r.TestEngineer,
                     TestEngineerId = r.TestEngineerId,
+                    TestEngineerRole = r.TestEngineerUser != null ? r.TestEngineerUser.Role : string.Empty,
                     Status = r.Status,
                     UploadDate = r.UploadDate,
                     FileName = r.FileName,
@@ -367,9 +382,46 @@ namespace Endurance.API.Services
             return true;
         }
 
-        public async Task<ReportStatsResponseDto> GetStatsAsync()
+        public async Task<ReportStatsResponseDto> GetStatsAsync(string interval = "weekly", DateTime? startDate = null, DateTime? endDate = null)
         {
-            var reports = await _context.Reports.AsNoTracking().ToListAsync();
+            var today = DateTime.UtcNow.Date;
+            DateTime periodStart = today.AddDays(-6);
+            DateTime periodEnd = today;
+
+            if (interval.ToLower() == "custom" && startDate.HasValue && endDate.HasValue)
+            {
+                periodStart = startDate.Value.Date;
+                periodEnd = endDate.Value.Date;
+            }
+            else if (interval.ToLower() == "daily")
+            {
+                periodStart = today;
+                periodEnd = today;
+            }
+            else if (interval.ToLower() == "monthly")
+            {
+                periodStart = today.AddDays(-29);
+                periodEnd = today;
+            }
+
+            var allReports = await _context.Reports.AsNoTracking().ToListAsync();
+            // Filter reports strictly to the selected period
+            var reports = allReports.Where(r => r.UploadDate.Date >= periodStart && r.UploadDate.Date <= periodEnd).ToList();
+            
+            int totalFilesUploaded = 0;
+            foreach (var r in reports)
+            {
+                if (string.IsNullOrEmpty(r.FileName) || r.FileName == "No files") continue;
+                if (r.FileName.Contains(" files (e.g."))
+                {
+                    if (int.TryParse(r.FileName.Split(' ')[0], out int c))
+                        totalFilesUploaded += c;
+                }
+                else
+                {
+                    totalFilesUploaded += 1;
+                }
+            }
 
             int totalReports = reports.Count;
             int passCount = reports.Count(r => r.PassFailStatus == "pass");
@@ -379,7 +431,8 @@ namespace Endurance.API.Services
             var modelMap = new Dictionary<string, int>();
             foreach (var r in reports)
             {
-                modelMap[r.ModelNumber] = modelMap.GetValueOrDefault(r.ModelNumber, 0) + 1;
+                var m = string.IsNullOrWhiteSpace(r.ModelNumber) ? "Unknown" : r.ModelNumber;
+                modelMap[m] = modelMap.GetValueOrDefault(m, 0) + 1;
             }
             var modelDistribution = modelMap.Select(kvp => new ModelDistributionItemDto { Name = kvp.Key, Value = kvp.Value }).ToList();
 
@@ -407,14 +460,67 @@ namespace Endurance.API.Services
             }
             var userActivity = activityMap.Values.ToList();
 
+            var weeklyTrend = new List<WeeklyTrendItemDto>();
+
+            for (var d = periodStart; d <= periodEnd; d = d.AddDays(1))
+            {
+                var dailyReports = reports.Where(r => r.UploadDate.Date == d).ToList();
+                int dailyUploaded = 0;
+                foreach (var r in dailyReports)
+                {
+                    if (string.IsNullOrEmpty(r.FileName) || r.FileName == "No files") continue;
+                    if (r.FileName.Contains(" files (e.g."))
+                    {
+                        if (int.TryParse(r.FileName.Split(' ')[0], out int c))
+                            dailyUploaded += c;
+                    }
+                    else
+                    {
+                        dailyUploaded += 1;
+                    }
+                }
+                
+                int dailyGenerated = dailyReports.Count;
+                weeklyTrend.Add(new WeeklyTrendItemDto
+                {
+                    Name = interval.ToLower() == "monthly" || interval.ToLower() == "custom" ? d.ToString("dd MMM") : d.ToString("ddd"),
+                    Uploaded = dailyUploaded,
+                    Generated = dailyGenerated,
+                    Trend = (dailyUploaded + dailyGenerated) / 2
+                });
+            }
+
+            int generatedCount = reports.Count(r => r.Status != "uploaded");
+            int yieldPercentage = generatedCount > 0 ? (int)Math.Round((double)passCount / generatedCount * 100) : 0;
+
+            var last7DaysStart = today.AddDays(-7);
+            var prev7DaysStart = today.AddDays(-14);
+
+            int last7Uploads = reports.Count(r => r.UploadDate >= last7DaysStart);
+            int prev7Uploads = reports.Count(r => r.UploadDate >= prev7DaysStart && r.UploadDate < last7DaysStart);
+            
+            int uploadGrowthPercentage = 0;
+            if (prev7Uploads > 0)
+            {
+                uploadGrowthPercentage = (int)Math.Round(((double)last7Uploads - prev7Uploads) / prev7Uploads * 100);
+            }
+            else if (last7Uploads > 0)
+            {
+                uploadGrowthPercentage = 100;
+            }
+
             return new ReportStatsResponseDto
             {
                 TotalReports = totalReports,
+                TotalFilesUploaded = totalFilesUploaded,
                 PassCount = passCount,
                 FailCount = failCount,
                 PendingCount = pendingCount,
+                UploadGrowthPercentage = uploadGrowthPercentage,
+                YieldPercentage = yieldPercentage,
                 ModelDistribution = modelDistribution,
-                UserActivity = userActivity
+                UserActivity = userActivity,
+                WeeklyTrend = weeklyTrend
             };
         }
 

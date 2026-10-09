@@ -9,7 +9,7 @@ namespace Endurance.API.Services
         Task<ReportDetailResponseDto?> GetReportByIdAsync(string id);
         Task<ReportDetailResponseDto?> UpdateReportStatusAsync(string id, StatusUpdateRequestDto update);
         Task<bool> DeleteReportAsync(string id);
-        Task<ReportStatsResponseDto> GetStatsAsync();
+        Task<ReportStatsResponseDto> GetStatsAsync(string interval = "weekly", DateTime? startDate = null, DateTime? endDate = null);
         Task<byte[]> GenerateReportAsync(string id, string? filter = null);
         Task<(byte[] fileData, string fileName, string contentType)> DownloadRawFilesAsync(string id);
         Task<bool> ClearAllReportsAsync();

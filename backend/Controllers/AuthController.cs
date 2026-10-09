@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -70,7 +70,8 @@ namespace Endurance.API.Controllers
                 Name = user.Name,
                 Role = user.Role,
                 Avatar = user.Avatar,
-                AccessToken = accessToken
+                AccessToken = accessToken,
+                RefreshToken = refreshToken.Token
             });
         }
 
@@ -127,7 +128,8 @@ namespace Endurance.API.Controllers
                 Name = user.Name,
                 Role = user.Role,
                 Avatar = user.Avatar,
-                AccessToken = newAccessToken
+                AccessToken = newAccessToken,
+                RefreshToken = newRefreshToken.Token
             });
         }
 
@@ -230,6 +232,26 @@ namespace Endurance.API.Controllers
             }
 
             return Ok(user);
+        }
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto request)
+        {
+            if (string.IsNullOrWhiteSpace(request.UserId) || string.IsNullOrWhiteSpace(request.NewPassword))
+            {
+                return BadRequest(new { message = "User ID and new password are required" });
+            }
+
+            var user = await _context.Users.FindAsync(request.UserId);
+            if (user == null)
+            {
+                return NotFound(new { message = "User not found" });
+            }
+
+            user.Password = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Password reset successfully" });
         }
 
         private string GenerateAccessToken(User user)

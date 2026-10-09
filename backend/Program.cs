@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Mvc;
@@ -310,12 +310,53 @@ try
                     Email = "admin@mendewadi.com",
                     Password = BCrypt.Net.BCrypt.HashPassword(adminPassword),
                     Role = "admin",
+                    IsActive = true,
                     Avatar = "https://ui-avatars.com/api/?name=System+Admin&background=0D8ABC&color=fff"
                 });
                 Log.Warning("Default admin user created. PLEASE CHANGE THE PASSWORD IMMEDIATELY.");
             }
             // Existing databases are left alone: the admin password is never reset on boot,
             // so user-edited passwords are preserved.
+
+            if (!db.Users.Any(u => u.Id == "111111"))
+            {
+                db.Users.Add(new User
+                {
+                    Id = "111111",
+                    Name = "Test Engineer",
+                    Email = "engineer@mendewadi.com",
+                    Password = BCrypt.Net.BCrypt.HashPassword("Admin123"),
+                    Role = "test_engineer",
+                    IsActive = true,
+                    Avatar = "TE"
+                });
+            }
+            if (!db.Users.Any(u => u.Id == "222222"))
+            {
+                db.Users.Add(new User
+                {
+                    Id = "222222",
+                    Name = "Quality Engineer",
+                    Email = "qualityengineer@mendewadi.com",
+                    Password = BCrypt.Net.BCrypt.HashPassword("Admin123"),
+                    Role = "quality_engineer",
+                    IsActive = true,
+                    Avatar = "QE"
+                });
+            }
+            if (!db.Users.Any(u => u.Id == "333333"))
+            {
+                db.Users.Add(new User
+                {
+                    Id = "333333",
+                    Name = "Quality Manager",
+                    Email = "qualitymanager@mendewadi.com",
+                    Password = BCrypt.Net.BCrypt.HashPassword("Admin123"),
+                    Role = "quality_manager",
+                    IsActive = true,
+                    Avatar = "QM"
+                });
+            }
 
             // Reports are not seeded for a clean initial state
             await db.SaveChangesAsync().ConfigureAwait(false);

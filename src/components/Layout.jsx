@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import './Layout.css';
 
 const NAV_ITEMS = [
+  { to: '/analytics', label: 'Analytics', roles: ['admin'] },
   { to: '/dashboard', label: 'Dashboard', roles: [] },
   { to: '/reports', label: 'Reports', roles: [] },
 ];
@@ -88,12 +89,7 @@ export default function Layout() {
             )}
           </div>
 
-          {/* Icons */}
-          <button className="navbar-icon-btn" aria-label="Notifications" title="Notifications">
-            🔔
-            <span className="notif-dot"></span>
-          </button>
-          
+
           <div className="settings-menu-container">
             <button 
               className={`navbar-icon-btn ${settingsDropdownOpen ? 'active' : ''}`}
@@ -143,9 +139,20 @@ export default function Layout() {
           </div>
 
           {/* User Profile / Logout */}
-          <div className="navbar-user-profile" title={`Logged in as ${user?.name || 'User'} (${user?.role})`}>
-            <div className="user-avatar-circle">
-              {user?.avatar || '👨‍💼'}
+          <div className="navbar-user-group">
+            <div className="navbar-user-profile" title={`Logged in as ${user?.name || 'User'} (${user?.role})`}>
+              <div className="user-avatar-circle">
+                {user?.avatar && user.avatar.startsWith('http') && !user.avatar.includes('ui-avatars.com') ? (
+                  <img src={user.avatar} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                ) : (
+                  '👨‍💼'
+                )}
+              </div>
+              <div className="user-profile-info">
+                <span className="user-profile-role">
+                  {user?.role ? user.role.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : ''}
+                </span>
+              </div>
             </div>
             <button className="logout-mini-btn" onClick={handleLogout} aria-label="Logout" title="Logout">
               ⏻

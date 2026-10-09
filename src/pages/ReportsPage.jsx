@@ -6,7 +6,7 @@ import { downloadReportExcel, downloadRawReportFiles } from '../utils/downloadUt
 import CustomModal from '../components/CustomModal';
 import './ReportsPage.css';
 
-const STATUSES = ['All', 'Uploaded', 'Generated', 'Reviewed', 'Approved', 'Rejected'];
+const STATUSES = ['All', 'Generated', 'Reviewed', 'Approved', 'Rejected'];
 const PAGE_SIZE = 10;
 
 export default function ReportsPage() {
@@ -80,10 +80,10 @@ export default function ReportsPage() {
     const isOwner = report.testEngineerId === user?.id || report.testEngineer === user?.name;
     const buttons = [];
 
-    // Generate — test_engineer on own uploaded reports, or admin
+    // Generate — test_engineer, quality_engineer, quality_manager, or admin
     if (
       status === 'uploaded' &&
-      (role === 'admin' || (role === 'test_engineer' && isOwner))
+      (role === 'admin' || role === 'quality_engineer' || role === 'quality_manager' || role === 'test_engineer')
     ) {
       buttons.push(
         <button
@@ -300,7 +300,7 @@ export default function ReportsPage() {
             <thead>
               <tr>
                 <th>Report ID</th>
-                <th>Test Engineer</th>
+                <th>User</th>
                 <th>Status</th>
                 <th>Pass / Fail</th>
                 <th>Upload Date</th>
@@ -311,8 +311,13 @@ export default function ReportsPage() {
               {paged.length > 0 ? (
                 paged.map((report) => (
                   <tr key={report.id}>
-                    <td>{report.testReportId || report.id}</td>
-                    <td>{report.testEngineer ?? '—'}</td>
+                    <td>{report.id}</td>
+                    <td>
+                      <div>{report.testEngineer ?? '—'}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600' }}>
+                        {report.testEngineerRole ? report.testEngineerRole.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : ''}
+                      </div>
+                    </td>
                     <td>
                       <span className={statusClass(report.status)}>
                         {report.status ?? 'Unknown'}

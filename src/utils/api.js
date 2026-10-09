@@ -15,13 +15,15 @@ if (accessToken) {
   api.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
 }
 
-export const setAccessToken = (token) => {
+export const setTokens = (token, refresh) => {
   accessToken = token;
   if (token) {
     sessionStorage.setItem('accessToken', token);
+    if (refresh) sessionStorage.setItem('refreshToken', refresh);
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   } else {
     sessionStorage.removeItem('accessToken');
+    sessionStorage.removeItem('refreshToken');
     delete api.defaults.headers.common['Authorization'];
   }
 };
@@ -50,7 +52,7 @@ api.interceptors.response.use(
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (url.includes('/auth/refresh')) {
-        setAccessToken(null);
+        setTokens(null);
         return Promise.reject(error);
       }
 
@@ -69,28 +71,35 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
+        const storedRefresh = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('refreshToken') : null;
+        const headers = {};
+        if (storedRefresh) {
+          headers['X-Refresh-Token'] = storedRefresh;
+        }
+
         const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
           method: 'POST',
+          headers: headers,
           credentials: 'include',
         });
 
         if (refreshResponse.ok) {
           const data = await refreshResponse.json();
           if (data.accessToken) {
-            setAccessToken(data.accessToken);
+            setTokens(data.accessToken, data.refreshToken);
             originalRequest.headers['Authorization'] = `Bearer ${data.accessToken}`;
           }
           isRefreshing = false;
           processQueue(null);
           return api(originalRequest);
         } else {
-          setAccessToken(null);
+          setTokens(null);
           isRefreshing = false;
           processQueue(error);
           return Promise.reject(error);
         }
       } catch (err) {
-        setAccessToken(null);
+        setTokens(null);
         isRefreshing = false;
         processQueue(err);
         return Promise.reject(err);

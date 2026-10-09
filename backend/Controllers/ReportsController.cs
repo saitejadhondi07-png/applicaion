@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -51,7 +51,7 @@ namespace Endurance.API.Controllers
         private static readonly Dictionary<string, string[]> StatusRoles = new(StringComparer.OrdinalIgnoreCase)
         {
             ["generated"] = new[] { "admin", "quality_manager", "quality_engineer", "test_engineer" },
-            ["reviewed"]  = new[] { "admin", "quality_engineer" },
+            ["reviewed"]  = new[] { "admin", "quality_engineer", "quality_manager" },
             ["rejected"]  = new[] { "admin", "quality_engineer", "quality_manager" },
             ["approved"]  = new[] { "admin", "quality_manager" },
         };
@@ -251,12 +251,12 @@ namespace Endurance.API.Controllers
         }
 
         [HttpGet("stats")]
-        [Authorize(Roles = "admin,quality_manager")]
-        public async Task<ActionResult<ReportStatsResponseDto>> GetStats()
+        [Authorize(Roles = "admin,quality_manager,quality_engineer,test_engineer")]
+        public async Task<ActionResult<ReportStatsResponseDto>> GetStats([FromQuery] string interval = "weekly", [FromQuery] DateTime? startDate = null, [FromQuery] DateTime? endDate = null)
         {
             try
             {
-                var stats = await _reportService.GetStatsAsync();
+                var stats = await _reportService.GetStatsAsync(interval, startDate, endDate);
                 return Ok(stats);
             }
             catch (System.Exception ex)
