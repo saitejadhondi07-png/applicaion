@@ -47,6 +47,7 @@ backend/appsettings.Development.json
 [Oo]bj/
 backend/publish
 dist/
+!docs/
 *.zip
 
 # Visual Studio / Rider local state
