@@ -23,7 +23,7 @@ function App() {
       <ReportDataProvider>
         <ReportMutationsProvider>
           <ReportFiltersProvider>
-            <BrowserRouter basename={import.meta.env.BASE_URL}>
+            <BrowserRouter>
               <GlobalErrorPopup />
               <Routes>
                 {/* Public routes */}
